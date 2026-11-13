@@ -1,0 +1,42 @@
+# ListApp: especificación funcional
+
+App de **magia**: una herramienta «oculta» en el móvil. Parece una app normal de listas, pero introduce en secreto palabras
+preparadas en un número elegido por el espectador. Android + iOS, todo en local, orientación vertical.
+
+## El efecto
+El mago enseña el móvil y cuenta que hace listas de todo (juegos de mesa, música, países visitados…). El espectador dice un número
+(p. ej. 16). El mago localiza la app de listas, entra y pide leer el elemento 16 de varias listas: «Splendor», «Extremoduro»,
+«Francia». Al final revela un sobre, visible desde el principio, con una foto suya jugando al Splendor en Francia con Extremoduro sonando.
+
+## El método
+1. Al abrir, la app **simula el escritorio del móvil**: tres páginas deslizables que son capturas de pantalla reales del móvil.
+2. **Páginas 1 y 2 = dígitos.** Cada una tiene una botonera invisible (10 cajas: 1,2,…,9,0). Al arrastrar de una página a la siguiente,
+   el punto donde se pone el dedo al empezar a arrastrar da el dígito (página 1 = decenas, página 2 = unidades).
+3. **Página 3 = icono de la app de listas** (una caja invisible sobre el icono de la captura). Al pulsarlo se «abre» la app y, en ese
+   momento, se inserta cada palabra configurada en la posición del número (decenas·10 + unidades) de su lista.
+4. Las listas no se vuelven a modificar hasta el **reset**: cerrar la app o pulsar el botón oculto de reset.
+5. Botón oculto **reset** arriba a la izquierda y botón oculto **configuración** arriba a la derecha de las pantallas de inicio.
+
+## Requisitos
+**R1. Escritorio simulado.** 3 páginas con imagen de fondo propia (capturas de galería). Sin imagen se muestra un marcador.
+**R2. Dígitos.** Páginas 1 y 2: 10 cajas configurables por página (posición y tamaño libres, independientes entre páginas).
+Si el dedo empieza fuera de las cajas, se aplica el modo elegido en config (**outsideMode**): *Ignorar* (el dígito no cambia y se cambia de página),
+*Bloquear* (no se puede deslizar sin tocar una caja válida) o *Dígito 0* (vale 0 y se cambia de página). Si al abrir la app falta algún dígito,
+se abre sin insertar nada. El número 00 no inserta nada.
+**R3. Icono.** Página 3: una caja configurable que abre la app de listas. No lleva imagen propia (va sobre el icono de la captura).
+**R4. Máscaras** (se configuran una vez, comunes a las tres páginas; cada página dibuja las suyas y viajan con su captura al deslizar): cajas que tapan elementos de la captura.
+Cada máscara se rellena con un color o con la «imagen limpia» (captura sin esos elementos, recortada en la misma zona) y puede mostrar
+la **hora real del sistema** en tiempo real (HH:mm) con color y tamaño configurables.
+**R5. App de listas real.** Lista de listas (crear, renombrar, borrar) y, dentro, elementos numerados (añadir, editar, borrar).
+**R6. Pares lista → palabra** (menú secreto): cualquier número de pares. Se elige la lista en un desplegable con las listas existentes que aún no tienen par (se asocia por nombre, sin distinguir mayúsculas).
+Si la lista no existe o es más corta que el número, no se toca. Si la palabra ya está en la lista (literal, sin distinguir mayúsculas),
+se **mueve** a esa posición y el resto se reordena; si no está, sustituye al elemento de esa posición.
+**R7. Reset.** Deshace lo insertado (restaura cada lista tal y como estaba antes del truco), olvida los dígitos y vuelve a la página 1.
+Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera cerrado sin él.
+**R8. Configuración.** Pares, imágenes de las 3 páginas, editor visual de cajas (arrastrar y redimensionar), máscaras e imagen limpia.
+**R9. Local.** Sin red ni cuentas. Ajustes en SharedPreferences/UserDefaults; imágenes en ficheros internos.
+
+## Preguntas abiertas
+- Icono de la app: se ha dibujado uno provisional de «documento con lista»; el usuario puede aportar el suyo en `data/icon.png`.
+- Números de más de dos dígitos (>99): no contemplado.
+- El reset restaura la lista entera: lo que se edite a mano en una lista afectada durante la sesión se pierde al resetear.
