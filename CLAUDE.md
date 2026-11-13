@@ -40,6 +40,9 @@ Código: `shared/src/commonMain/kotlin/com/listapp/`
 - `ui/AppState.kt`: estado global y persistencia (JSON con kotlinx-serialization en SharedPreferences/UserDefaults; imágenes en ficheros).
 - `ui/HomeScreen.kt`: escritorio + capa de máscaras. `ui/ListScreens.kt`: app de listas. `ui/ConfigScreen.kt` y `ui/BoxEditor.kt`: configuración.
 - `ui/Platform.kt` (`expect`): barras del sistema, botón atrás, selector de galería, decodificar imagen, almacenes. Android en `androidMain`, iOS en `iosMain`.
+Modos del escritorio (`ScreenMode`): pantalla completa (captura entera por página) o **capas** (fondo fijo + capa de iconos con transparencia, calculada
+con `domain/Matting.kt` a partir de capturas con fondo negro y blanco, o de una sobre color liso). En modo capas las máscaras y las zonas fijas
+(`fixedZones`: barra superior, dock) no se deslizan. Las capas procesadas se cachean en ficheros `layer_*.raw`; `imageFromPixels` (expect/actual) las convierte en bitmap.
 Las cajas se guardan en **fracciones (0..1)** de la pantalla completa; Home y editor ocultan las barras del sistema para que coincidan con las capturas.
 Estado: Android probado en emulador; **iOS sin compilar todavía** (selector de fotos con `UIImagePickerController` y almacén de ficheros escritos sin probar).
 
@@ -69,6 +72,8 @@ Estado: Android probado en emulador; **iOS sin compilar todavía** (selector de 
 - Captura: `adb shell screencap -p /sdcard/s.png` + `adb pull` (no redirigir `exec-out` desde PowerShell: corrompe el PNG).
 - Para no pasar por el selector de galería: copiar imágenes a `files/images/{screen1,screen2,screen3,clean}.img` y un `shared_prefs/listapp.xml`
   con la clave `config` mediante `adb push` + `run-as com.listapp cp` (app en debug).
+- Para el modo capas se pueden sembrar `wall.img`, `bwdark{1-3}.img`, `bwlight{1-3}.img` o `key{1-3}.img` en `files/images/` y `mode` en la config.
+- Mantener pulsado: `adb shell input motionevent DOWN x y`, `sleep`, `MOVE`, `UP` (o `input swipe x y x y 1800` para las esquinas ocultas).
 - Deslizar con `adb shell input swipe x1 y1 x2 y2 120` (rápido, para que el pager cambie de página).
 
 ## Flujo de trabajo

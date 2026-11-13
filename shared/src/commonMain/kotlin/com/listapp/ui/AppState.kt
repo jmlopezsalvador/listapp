@@ -10,7 +10,13 @@ import com.listapp.domain.AppJson
 import com.listapp.domain.Force
 import com.listapp.domain.MagicConfig
 import com.listapp.domain.MagicList
+import com.listapp.domain.Matting
+import com.listapp.domain.ScreenMode
 import com.listapp.domain.UndoEntry
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 
 /** Pantallas de la app. */
@@ -22,17 +28,41 @@ sealed interface Screen {
     data class Editor(val target: EditTarget) : Screen
 }
 
-enum class EditTarget { Digits1, Digits2, Icon, Masks }
+enum class EditTarget { Digits1, Digits2, Icon, Masks, Fixed, Wallpaper }
 
-/** Nombres de los ficheros de imagen: una por página del escritorio y la «imagen limpia» de las máscaras. */
+/** Nombres de los ficheros de imagen. */
 object Slots {
+    /** Modo pantalla completa: una captura por página. */
     val pages = listOf("screen1.img", "screen2.img", "screen3.img")
+
+    /** Captura sin los elementos a tapar (modo pantalla completa). */
     const val CLEAN = "clean.img"
-    val all = pages + CLEAN
+
+    /** Modo capas: imagen del fondo de pantalla (fija). */
+    const val WALL = "wall.img"
+
+    /** Modo capas blanco/negro: capturas con fondo oscuro y claro de cada página (0..2). */
+    fun bwDark(p: Int) = "bwdark${p + 1}.img"
+    fun bwLight(p: Int) = "bwlight${p + 1}.img"
+
+    /** Modo capas color único: captura sobre fondo liso de cada página (0..2). */
+    fun key(p: Int) = "key${p + 1}.img"
+
+    /** Caché de la capa ya procesada (píxeles ARGB). */
+    fun layerCache(mode: ScreenMode, p: Int) = "layer_${mode.name.lowercase()}_${p + 1}.raw"
+
+    /** Imágenes que se guardan decodificadas en memoria. */
+    val decoded = pages + CLEAN + WALL
+
+    /** Capturas de entrada del modo capas (solo se guardan; la capa resultante se calcula). */
+    val raw = (0..2).flatMap { listOf(bwDark(it), bwLight(it), key(it)) }
+
+    fun modeOfRaw(slot: String) = if (slot.startsWith("key")) ScreenMode.LAYERS_KEY else ScreenMode.LAYERS_BW
+    fun pageOfRaw(slot: String) = slot.last { it.isDigit() }.digitToInt() - 1
 }
 
 /** Estado global: listas, configuración secreta, dígitos elegidos e imágenes. */
-class AppState(private val kv: KeyValueStore, private val blobs: BlobStore) {
+class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, private val scope: CoroutineScope) {
     var config by mutableStateOf(loadConfig())
         private set
     var lists by mutableStateOf(loadLists())
@@ -51,10 +81,21 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore) {
     private var undo: List<UndoEntry> = loadUndo()
     val images = mutableStateMapOf<String, ImageBitmap>()
 
+    /** Modo capas: capas de iconos ya procesadas (con transparencia), por página 0..2. */
+    val layers = mutableStateMapOf<Int, ImageBitmap>()
+
+    /** Modo capas: texto de estado del procesado de cada página. */
+    val layerStatus = mutableStateMapOf<Int, String>()
+
+    /** Capturas de entrada del modo capas que ya están guardadas. */
+    val rawPresent = mutableStateMapOf<String, Boolean>()
+
     init {
         // Arrancar la app = reset: si quedó algo insertado de la sesión anterior, se deshace.
         undoInserted()
-        for (slot in Slots.all) blobs.read(slot)?.let(::decodeImage)?.let { images[slot] = it }
+        for (slot in Slots.decoded) blobs.read(slot)?.let(::decodeImage)?.let { images[slot] = it }
+        for (slot in Slots.raw) if (blobs.exists(slot)) rawPresent[slot] = true
+        loadLayers()
     }
 
     // ---------- Configuración ----------
@@ -63,15 +104,100 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore) {
         kv.putString(KEY_CONFIG, AppJson.encodeToString(MagicConfig.serializer(), config))
     }
 
-    fun setImage(slot: String, bytes: ByteArray) {
-        val bmp = decodeImage(bytes) ?: return
+    /** Guarda una imagen elegida en la galería. Devuelve false si no se pudo leer. */
+    fun setImage(slot: String, bytes: ByteArray): Boolean {
+        val bmp = decodeImage(bytes) ?: return false
         blobs.write(slot, bytes)
-        images[slot] = bmp
+        if (slot in Slots.raw) {
+            rawPresent[slot] = true
+            val mode = Slots.modeOfRaw(slot)
+            val page = Slots.pageOfRaw(slot)
+            blobs.delete(Slots.layerCache(mode, page))
+            if (mode == config.mode) rebuildLayer(page)
+        } else {
+            images[slot] = bmp
+        }
+        return true
     }
 
     fun clearImage(slot: String) {
         blobs.delete(slot)
-        images.remove(slot)
+        if (slot in Slots.raw) {
+            rawPresent.remove(slot)
+            val mode = Slots.modeOfRaw(slot)
+            val page = Slots.pageOfRaw(slot)
+            blobs.delete(Slots.layerCache(mode, page))
+            if (mode == config.mode) {
+                layers.remove(page)
+                layerStatus.remove(page)
+            }
+        } else {
+            images.remove(slot)
+        }
+    }
+
+    // ---------- Modo capas
+    fun setMode(mode: ScreenMode) {
+        if (config.mode == mode) return
+        updateConfig { it.copy(mode = mode) }
+        loadLayers()
+    }
+
+    /** Carga las capas del modo activo (de la caché; si falta, las recalcula a partir de las capturas). */
+    fun loadLayers() {
+        layers.clear()
+        layerStatus.clear()
+        val mode = config.mode
+        if (mode == ScreenMode.FULL) return
+        for (p in 0..2) {
+            scope.launch {
+                val cached = withContext(Dispatchers.Default) {
+                    blobs.read(Slots.layerCache(mode, p))?.let { Matting.decodeLayer(it) }
+                        ?.let { (w, h, px) -> imageFromPixels(w, h, px) }
+                }
+                if (config.mode != mode) return@launch
+                if (cached != null) layers[p] = cached else rebuildLayer(p)
+            }
+        }
+    }
+
+    /** Calcula la capa con transparencia de una página a partir de sus capturas (en segundo plano). */
+    fun rebuildLayer(page: Int) {
+        val mode = config.mode
+        val inputs = when (mode) {
+            ScreenMode.LAYERS_BW -> listOf(Slots.bwDark(page), Slots.bwLight(page))
+            ScreenMode.LAYERS_KEY -> listOf(Slots.key(page))
+            ScreenMode.FULL -> return
+        }
+        if (inputs.any { rawPresent[it] != true }) {
+            layers.remove(page)
+            layerStatus.remove(page)
+            return
+        }
+        layerStatus[page] = "Procesando…"
+        scope.launch {
+            try {
+                val result = withContext(Dispatchers.Default) {
+                    val imgs = inputs.map { name ->
+                        decodeImage(blobs.read(name) ?: error("Falta una captura")) ?: error("Imagen no válida")
+                    }
+                    val w = imgs[0].width
+                    val h = imgs[0].height
+                    require(imgs.all { it.width == w && it.height == h }) { "Las dos capturas deben tener el mismo tamaño" }
+                    val px = imgs.map { img -> IntArray(w * h).also { img.readPixels(it) } }
+                    val out = if (mode == ScreenMode.LAYERS_BW) Matting.blackWhite(px[0], px[1]) else Matting.colorKey(px[0])
+                    blobs.write(Slots.layerCache(mode, page), Matting.encodeLayer(w, h, out))
+                    imageFromPixels(w, h, out)
+                }
+                if (config.mode == mode) {
+                    layers[page] = result
+                    layerStatus[page] = "Lista"
+                }
+            } catch (e: Throwable) {
+                layers.remove(page)
+                layerStatus[page] = "Error: ${e.message ?: "no se pudo procesar"}"
+            }
+        }
     }
 
     // ---------- Listas ----------

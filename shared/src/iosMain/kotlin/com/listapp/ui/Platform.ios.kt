@@ -13,7 +13,10 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArrayOf
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.usePinned
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
+import org.jetbrains.skia.ImageInfo
 import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
@@ -80,6 +83,21 @@ actual fun rememberImagePicker(onPicked: (ByteArray) -> Unit): () -> Unit {
 actual fun decodeImage(bytes: ByteArray): ImageBitmap? =
     runCatching { Image.makeFromEncoded(bytes).toComposeImageBitmap() }.getOrNull()
 
+/** Los enteros ARGB, en little-endian, son bytes B,G,R,A: justo el formato BGRA_8888 de Skia. */
+actual fun imageFromPixels(w: Int, h: Int, argb: IntArray): ImageBitmap {
+    val bytes = ByteArray(argb.size * 4)
+    for (i in argb.indices) {
+        val p = argb[i]
+        val o = i * 4
+        bytes[o] = p.toByte()
+        bytes[o + 1] = (p ushr 8).toByte()
+        bytes[o + 2] = (p ushr 16).toByte()
+        bytes[o + 3] = (p ushr 24).toByte()
+    }
+    val info = ImageInfo(w, h, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL)
+    return Image.makeRaster(info, bytes, w * 4).toComposeImageBitmap()
+}
+
 private fun NSData.toByteArray(): ByteArray {
     val n = length.toInt()
     val out = ByteArray(n)
@@ -101,6 +119,7 @@ class DocumentsBlobStore : BlobStore {
     private val dir: String =
         (NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true).firstOrNull() as? String) ?: ""
 
+    override fun exists(name: String): Boolean = NSFileManager.defaultManager.fileExistsAtPath("$dir/$name")
     override fun read(name: String): ByteArray? = NSData.dataWithContentsOfFile("$dir/$name")?.toByteArray()
     override fun write(name: String, bytes: ByteArray) { bytes.toNSData().writeToFile("$dir/$name", true) }
     override fun delete(name: String) { NSFileManager.defaultManager.removeItemAtPath("$dir/$name", null) }

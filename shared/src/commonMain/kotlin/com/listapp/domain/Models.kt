@@ -59,6 +59,19 @@ enum class OutsideMode(val label: String) {
     ZERO("Dígito 0"),
 }
 
+/** Cómo se construye el escritorio: captura completa, o capas (fondo fijo + iconos que se deslizan). */
+@Serializable
+enum class ScreenMode(val label: String) {
+    /** Cada página es una captura completa que se desliza entera. */
+    FULL("Pantalla completa"),
+
+    /** Fondo fijo + capa de iconos obtenida con dos capturas (fondo negro y fondo blanco). */
+    LAYERS_BW("Capas blanco/negro"),
+
+    /** Fondo fijo + capa de iconos obtenida con una captura sobre un color liso. */
+    LAYERS_KEY("Capas color único"),
+}
+
 /** Configuración secreta: pares, máscaras y cajas de las pantallas. */
 @Serializable
 data class MagicConfig(
@@ -68,6 +81,13 @@ data class MagicConfig(
     val digitBoxes: List<List<NRect?>> = List(2) { List(10) { null } },
     val iconBox: NRect? = null,
     val outsideMode: OutsideMode = OutsideMode.KEEP,
+    val mode: ScreenMode = ScreenMode.FULL,
+    /** Modo capas: ajuste del fondo fijo (zoom sobre «rellenar pantalla» y desplazamiento en fracciones de pantalla). */
+    val wallpaperZoom: Float = 1f,
+    val wallpaperX: Float = 0f,
+    val wallpaperY: Float = 0f,
+    /** Modo capas: zonas que no se deslizan (barra superior, dock…): se dibujan con la capa de la pantalla 1. */
+    val fixedZones: List<NRect> = emptyList(),
 )
 
 val AppJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }

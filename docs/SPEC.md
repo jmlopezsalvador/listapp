@@ -16,6 +16,7 @@ El mago enseña el móvil y cuenta que hace listas de todo (juegos de mesa, mús
    momento, se inserta cada palabra configurada en la posición del número (decenas·10 + unidades) de su lista.
 4. Las listas no se vuelven a modificar hasta el **reset**: cerrar la app o pulsar el botón oculto de reset.
 5. Botón oculto **reset** arriba a la izquierda y botón oculto **configuración** arriba a la derecha de las pantallas de inicio.
+   No son botones normales: hay que **mantener el dedo quieto 1,5 s** (vibración corta al activarse); un toque no hace nada.
 
 ## Requisitos
 **R1. Escritorio simulado.** 3 páginas con imagen de fondo propia (capturas de galería). Sin imagen se muestra un marcador.
@@ -27,13 +28,26 @@ se abre sin insertar nada. El número 00 no inserta nada.
 **R4. Máscaras** (se configuran una vez, comunes a las tres páginas; cada página dibuja las suyas y viajan con su captura al deslizar): cajas que tapan elementos de la captura.
 Cada máscara se rellena con un color o con la «imagen limpia» (captura sin esos elementos, recortada en la misma zona) y puede mostrar
 la **hora real del sistema** en tiempo real (HH:mm) con color y tamaño configurables.
-**R5. App de listas real.** Lista de listas (crear, renombrar, borrar) y, dentro, elementos numerados (añadir, editar, borrar).
+**R5. App de listas real**, con diseño moderno (tarjetas, cabecera grande, tema claro/oscuro del sistema).
+- Lista de listas: botón «+» (diálogo) para crear; deslizar una tarjeta a la izquierda descubre *Renombrar* y *Borrar*.
+- Elementos numerados: tocar una fila la edita en línea; «Siguiente» del teclado guarda y abre otra fila justo debajo; la fila «Añadir elemento»
+  (y el «+» de arriba) añade al final; deslizar a la izquierda descubre *Borrar* (hasta el final, borra); **mantener pulsado 1 s** activa el modo
+  mover (vibración) y se arrastra para subir o bajar, con desplazamiento automático en los bordes.
 **R6. Pares lista → palabra** (menú secreto): cualquier número de pares. Se elige la lista en un desplegable con las listas existentes que aún no tienen par (se asocia por nombre, sin distinguir mayúsculas).
 Si la lista no existe o es más corta que el número, no se toca. Si la palabra ya está en la lista (literal, sin distinguir mayúsculas),
-se **mueve** a esa posición y el resto se reordena; si no está, sustituye al elemento de esa posición.
+se **mueve** a esa posición y el resto se reordena; si no está, **sustituye** al elemento de esa posición (el número de elementos de la lista nunca cambia).
 **R7. Reset.** Deshace lo insertado (restaura cada lista tal y como estaba antes del truco), olvida los dígitos y vuelve a la página 1.
 Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera cerrado sin él.
 **R8. Configuración.** Pares, imágenes de las 3 páginas, editor visual de cajas (arrastrar y redimensionar), máscaras e imagen limpia.
+**R10. Modos del escritorio** (config). Tres modos para construir las páginas:
+- *Pantalla completa*: cada página es una captura entera que se desliza (R1). Las máscaras viajan con su página.
+- *Capas blanco/negro*: como en el iPhone, el **fondo de pantalla queda fijo** y solo se desliza la **capa de iconos**. El usuario importa la imagen
+  original del fondo (con zoom y posición ajustables) y, por cada página, dos capturas idénticas salvo el fondo (color liso negro y color liso blanco).
+  La app calcula la transparencia exacta de cada píxel (bordes, sombras, cristal del dock) y guarda la capa ya procesada.
+- *Capas color único*: una captura por página sobre un fondo liso de cualquier color (se detecta solo), que se hace transparente. Más rápido pero con
+  un ligero borde del color de fondo en los bordes.
+- En modo capas las **máscaras son fijas** (no se deslizan) y pueden rellenarse con el fondo de pantalla. Las **zonas fijas** (barra superior, dock) se
+  dibujan con la capa de la pantalla 1 sobre el fondo y no se deslizan. Las cajas de dígitos e icono funcionan igual.
 **R9. Local.** Sin red ni cuentas. Ajustes en SharedPreferences/UserDefaults; imágenes en ficheros internos.
 
 ## Preguntas abiertas

@@ -30,6 +30,9 @@ class ForceTest {
         assertEquals("Extremoduro", res[1].items[15])
         assertEquals("x16", res[2].items[15])
         assertEquals(2, undo.size)
+        // sustituye: el número de elementos no cambia
+        assertEquals(50, res[0].items.size)
+        assertEquals(50, res[1].items.size)
     }
 
     @Test fun undoRestoresOriginal() {

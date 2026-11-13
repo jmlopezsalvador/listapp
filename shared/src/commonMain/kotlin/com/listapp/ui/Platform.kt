@@ -23,6 +23,9 @@ expect fun rememberImagePicker(onPicked: (ByteArray) -> Unit): () -> Unit
 /** Decodifica PNG/JPEG a un bitmap de Compose (null si falla). */
 expect fun decodeImage(bytes: ByteArray): ImageBitmap?
 
+/** Crea un bitmap a partir de píxeles ARGB (0xAARRGGBB, sin premultiplicar) de `w` × `h`. */
+expect fun imageFromPixels(w: Int, h: Int, argb: IntArray): ImageBitmap
+
 /** Almacenamiento clave-valor local. Android: SharedPreferences. iOS: NSUserDefaults. */
 interface KeyValueStore {
     fun getString(key: String): String?
@@ -31,6 +34,7 @@ interface KeyValueStore {
 
 /** Ficheros internos de la app (las capturas). */
 interface BlobStore {
+    fun exists(name: String): Boolean
     fun read(name: String): ByteArray?
     fun write(name: String, bytes: ByteArray)
     fun delete(name: String)

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listapp.domain.Mask
 import com.listapp.domain.NRect
+import com.listapp.domain.ScreenMode
 import com.listapp.domain.digitOfIndex
 import kotlin.math.roundToInt
 
@@ -59,8 +60,7 @@ data class EditBox(val id: Long, val label: String, val rect: NRect, val selecte
 /** Captura a pantalla completa con cajas que se arrastran (mover) y se estiran (asa de la esquina inferior derecha). */
 @Composable
 fun BoxCanvas(
-    image: ImageBitmap?,
-    page: Int,
+    background: @Composable () -> Unit,
     boxes: List<EditBox>,
     interactive: Boolean,
     onSelect: (Long) -> Unit,
@@ -82,7 +82,7 @@ fun BoxCanvas(
                 }
             },
     ) {
-        PageImage(image, page)
+        background()
         if (size.width > 0) underlay(size)
         if (size.width > 0) {
             for (b in boxes) key(b.id) {
@@ -174,13 +174,15 @@ fun EditorScreen(state: AppState, target: EditTarget) {
     var selected by remember(target) { mutableStateOf<Long?>(null) }
     var viewPage by remember(target) {
         mutableStateOf(
-            when (target) { EditTarget.Digits1 -> 0; EditTarget.Digits2 -> 1; EditTarget.Icon -> 2; EditTarget.Masks -> 0 },
+            when (target) { EditTarget.Digits1 -> 0; EditTarget.Digits2 -> 1; EditTarget.Icon -> 2; else -> 0 },
         )
     }
     var viewClean by remember { mutableStateOf(false) }
     var eyedropper by remember { mutableStateOf(false) }
 
-    val image = if (viewClean) state.images[Slots.CLEAN] else state.images[Slots.pages[viewPage]]
+    val layersMode = cfg.mode != ScreenMode.FULL
+    // Imagen de la que se toma color con la pipeta (solo en pantalla completa).
+    val image = if (layersMode) null else if (viewClean) state.images[Slots.CLEAN] else state.images[Slots.pages[viewPage]]
     val digitPage = if (target == EditTarget.Digits1) 0 else 1
 
     val boxes: List<EditBox> = when (target) {
@@ -190,6 +192,8 @@ fun EditorScreen(state: AppState, target: EditTarget) {
             }
         EditTarget.Icon -> listOfNotNull(cfg.iconBox?.let { EditBox(0, "Icono", it, selected == 0L) })
         EditTarget.Masks -> cfg.masks.mapIndexed { i, m -> EditBox(m.id, "M${i + 1}", m.rect, selected == m.id, fill = false) }
+        EditTarget.Fixed -> cfg.fixedZones.mapIndexed { i, r -> EditBox(i.toLong(), "Z${i + 1}", r, selected == i.toLong()) }
+        EditTarget.Wallpaper -> emptyList()
     }
 
     fun setDigitBoxes(list: List<NRect?>) = state.updateConfig { c ->
@@ -202,6 +206,8 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                 setDigitBoxes(cfg.digitBoxes[digitPage].mapIndexed { i, old -> if (i.toLong() == id) r else old })
             EditTarget.Icon -> state.updateConfig { it.copy(iconBox = r) }
             EditTarget.Masks -> state.updateConfig { c -> c.copy(masks = c.masks.map { if (it.id == id) it.copy(rect = r) else it }) }
+            EditTarget.Fixed -> state.updateConfig { c -> c.copy(fixedZones = c.fixedZones.mapIndexed { i, old -> if (i.toLong() == id) r else old }) }
+            EditTarget.Wallpaper -> {}
         }
     }
 
@@ -212,8 +218,9 @@ fun EditorScreen(state: AppState, target: EditTarget) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         BoxCanvas(
-            image = image,
-            page = viewPage,
+            background = {
+                if (!layersMode && viewClean) PageImage(state.images[Slots.CLEAN], viewPage) else PagePreview(state, viewPage)
+            },
             boxes = boxes,
             interactive = !eyedropper,
             onSelect = { selected = it },
@@ -234,7 +241,7 @@ fun EditorScreen(state: AppState, target: EditTarget) {
             modifier = Modifier.fillMaxSize(),
             underlay = { size ->
                 // En el editor de máscaras se ve el resultado real de cada máscara bajo su contorno.
-                if (target == EditTarget.Masks) for (m in cfg.masks) MaskView(m, size, state.images[Slots.CLEAN])
+                if (target == EditTarget.Masks) for (m in cfg.masks) MaskView(m, size, state.images[Slots.CLEAN], state)
             },
         )
 
@@ -250,6 +257,8 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                         EditTarget.Digits2 -> "Pantalla 2 · unidades"
                         EditTarget.Icon -> "Pantalla 3 · caja del icono"
                         EditTarget.Masks -> "Máscaras"
+                        EditTarget.Fixed -> "Zonas fijas"
+                        EditTarget.Wallpaper -> "Ajustar el fondo"
                     },
                     Modifier.weight(1f),
                     fontWeight = FontWeight.Bold,
@@ -306,6 +315,8 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                             onEyedropper = { eyedropper = it },
                             updateMask = ::updateMask,
                         )
+                        EditTarget.Fixed -> FixedPanel(state, selected) { selected = it }
+                        EditTarget.Wallpaper -> WallpaperPanel(state)
                     }
                 }
             }
@@ -345,6 +356,53 @@ private fun DigitsPanel(
     }
 }
 
+@Composable
+private fun FixedPanel(state: AppState, selected: Long?, onSelect: (Long?) -> Unit) {
+    val zones = state.config.fixedZones
+    Text(
+        "Zonas que no se deslizan al cambiar de página (barra superior, dock…). Se dibujan con la capa de la pantalla 1 sobre el fondo. " +
+            "Las máscaras (la hora) van encima.",
+        fontSize = 13.sp,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        zones.forEachIndexed { i, _ -> Chip("Z${i + 1}", selected == i.toLong()) { onSelect(i.toLong()) } }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = {
+            state.updateConfig { it.copy(fixedZones = it.fixedZones + NRect(0f, 0f, 1f, 0.06f)) }
+            onSelect(zones.size.toLong())
+        }) { Text("+ Barra superior") }
+        OutlinedButton(onClick = {
+            state.updateConfig { it.copy(fixedZones = it.fixedZones + NRect(0f, 0.85f, 1f, 0.15f)) }
+            onSelect(zones.size.toLong())
+        }) { Text("+ Dock") }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = {
+            state.updateConfig { it.copy(fixedZones = it.fixedZones + DefaultBox) }
+            onSelect(zones.size.toLong())
+        }) { Text("+ Otra") }
+        OutlinedButton(onClick = {
+            val s = selected?.toInt()
+            if (s != null) state.updateConfig { it.copy(fixedZones = it.fixedZones.filterIndexed { i, _ -> i != s }) }
+            onSelect(null)
+        }, enabled = selected != null) { Text("Quitar zona") }
+    }
+}
+
+@Composable
+private fun WallpaperPanel(state: AppState) {
+    val cfg = state.config
+    Text("Ajusta el fondo para que se parezca al de tu móvil (zoom y posición).", fontSize = 13.sp)
+    Text("Zoom", fontSize = 13.sp)
+    Slider(cfg.wallpaperZoom, { v -> state.updateConfig { it.copy(wallpaperZoom = v) } }, valueRange = 1f..3f)
+    Text("Horizontal", fontSize = 13.sp)
+    Slider(cfg.wallpaperX, { v -> state.updateConfig { it.copy(wallpaperX = v) } }, valueRange = -0.5f..0.5f)
+    Text("Vertical", fontSize = 13.sp)
+    Slider(cfg.wallpaperY, { v -> state.updateConfig { it.copy(wallpaperY = v) } }, valueRange = -0.5f..0.5f)
+    OutlinedButton(onClick = { state.updateConfig { it.copy(wallpaperZoom = 1f, wallpaperX = 0f, wallpaperY = 0f) } }) { Text("Restablecer") }
+}
+
 private val Swatches = listOf(0xFF000000, 0xFFFFFFFF, 0xFF1C1C1E, 0xFFF2F2F7, 0xFF0A84FF, 0xFF34C759, 0xFFFF3B30, 0xFF8E8E93)
 
 @Composable
@@ -360,13 +418,14 @@ private fun MasksPanel(
     updateMask: ((Mask) -> Mask) -> Unit,
 ) {
     val cfg = state.config
-    val hasClean = state.images.containsKey(Slots.CLEAN)
+    val layersMode = cfg.mode != ScreenMode.FULL
+    val hasClean = state.images.containsKey(if (layersMode) Slots.WALL else Slots.CLEAN)
     val mask = cfg.masks.firstOrNull { it.id == selected }
 
     Text("Ver captura de fondo:", fontSize = 13.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (p in 0..2) Chip("${p + 1}", !viewClean && viewPage == p) { onView(p, false) }
-        Chip("Limpia", viewClean, enabled = hasClean) { onView(viewPage, true) }
+        if (!layersMode) Chip("Limpia", viewClean, enabled = hasClean) { onView(viewPage, true) }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         cfg.masks.forEachIndexed { i, m -> Chip("M${i + 1}", m.id == selected) { onSelect(m.id) } }
@@ -384,7 +443,7 @@ private fun MasksPanel(
     Text("Relleno", fontWeight = FontWeight.SemiBold)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Chip("Color", !mask.useClean) { updateMask { it.copy(useClean = false) } }
-        Chip("Imagen limpia", mask.useClean, enabled = hasClean) { updateMask { it.copy(useClean = true) } }
+        Chip(if (layersMode) "Fondo de pantalla" else "Imagen limpia", mask.useClean, enabled = hasClean) { updateMask { it.copy(useClean = true) } }
     }
     if (!mask.useClean) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -398,7 +457,7 @@ private fun MasksPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             HexField(mask.color) { c -> updateMask { it.copy(color = c) } }
-            Chip(if (eyedropper) "Toca la captura…" else "Pipeta", eyedropper) { onEyedropper(!eyedropper) }
+            if (!layersMode) Chip(if (eyedropper) "Toca la captura…" else "Pipeta", eyedropper) { onEyedropper(!eyedropper) }
         }
     }
 

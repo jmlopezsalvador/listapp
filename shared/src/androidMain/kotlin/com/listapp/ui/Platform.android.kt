@@ -3,6 +3,7 @@ package com.listapp.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.view.WindowManager
@@ -75,6 +76,9 @@ actual fun decodeImage(bytes: ByteArray): ImageBitmap? {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
 }
 
+actual fun imageFromPixels(w: Int, h: Int, argb: IntArray): ImageBitmap =
+    Bitmap.createBitmap(argb, w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
+
 class SharedPrefsStore(context: Context) : KeyValueStore {
     private val p = context.getSharedPreferences("listapp", Context.MODE_PRIVATE)
     override fun getString(key: String): String? = p.getString(key, null)
@@ -83,6 +87,7 @@ class SharedPrefsStore(context: Context) : KeyValueStore {
 
 class FileBlobStore(context: Context) : BlobStore {
     private val dir = File(context.filesDir, "images").apply { mkdirs() }
+    override fun exists(name: String) = File(dir, name).exists()
     override fun read(name: String): ByteArray? = File(dir, name).takeIf { it.exists() }?.readBytes()
     override fun write(name: String, bytes: ByteArray) = File(dir, name).writeBytes(bytes)
     override fun delete(name: String) { File(dir, name).delete() }
