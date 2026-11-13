@@ -143,6 +143,15 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
         loadLayers()
     }
 
+    /** Modo color único: cambia la tolerancia y recalcula las capas. */
+    fun setKeyTolerance(v: Int) {
+        updateConfig { it.copy(keyTolerance = v) }
+        for (p in 0..2) {
+            blobs.delete(Slots.layerCache(ScreenMode.LAYERS_KEY, p))
+            if (config.mode == ScreenMode.LAYERS_KEY) rebuildLayer(p)
+        }
+    }
+
     /** Carga las capas del modo activo (de la caché; si falta, las recalcula a partir de las capturas). */
     fun loadLayers() {
         layers.clear()
@@ -185,7 +194,7 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
                     val h = imgs[0].height
                     require(imgs.all { it.width == w && it.height == h }) { "Las dos capturas deben tener el mismo tamaño" }
                     val px = imgs.map { img -> IntArray(w * h).also { img.readPixels(it) } }
-                    val out = if (mode == ScreenMode.LAYERS_BW) Matting.blackWhite(px[0], px[1]) else Matting.colorKey(px[0])
+                    val out = if (mode == ScreenMode.LAYERS_BW) Matting.blackWhite(px[0], px[1]) else Matting.colorKey(px[0], low = maxOf(2, config.keyTolerance / 6), high = config.keyTolerance)
                     blobs.write(Slots.layerCache(mode, page), Matting.encodeLayer(w, h, out))
                     imageFromPixels(w, h, out)
                 }

@@ -24,6 +24,7 @@ El mago enseña el móvil y cuenta que hace listas de todo (juegos de mesa, mús
 Si el dedo empieza fuera de las cajas, se aplica el modo elegido en config (**outsideMode**): *Ignorar* (el dígito no cambia y se cambia de página),
 *Bloquear* (no se puede deslizar sin tocar una caja válida) o *Dígito 0* (vale 0 y se cambia de página). Si al abrir la app falta algún dígito,
 se abre sin insertar nada. El número 00 no inserta nada.
+El dígito se decide al poner el dedo (en qué caja cae) y se confirma en cuanto la página cambia, sin esperar a que termine la animación: se puede deslizar muy rápido.
 **R3. Icono.** Página 3: una caja configurable que abre la app de listas. No lleva imagen propia (va sobre el icono de la captura).
 **R4. Máscaras** (se configuran una vez, comunes a las tres páginas; cada página dibuja las suyas y viajan con su captura al deslizar): cajas que tapan elementos de la captura.
 Cada máscara se rellena con un color o con la «imagen limpia» (captura sin esos elementos, recortada en la misma zona) y puede mostrar
@@ -45,7 +46,7 @@ Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera ce
   original del fondo (con zoom y posición ajustables) y, por cada página, dos capturas idénticas salvo el fondo (color liso negro y color liso blanco).
   La app calcula la transparencia exacta de cada píxel (bordes, sombras, cristal del dock) y guarda la capa ya procesada.
 - *Capas color único*: una captura por página sobre un fondo liso de cualquier color (se detecta solo), que se hace transparente. Más rápido pero con
-  un ligero borde del color de fondo en los bordes.
+  un ligero borde del color de fondo en los bordes. Tiene un ajuste de **tolerancia** (más alta = lo parecido al fondo, p. ej. carpetas translúcidas, se vuelve más transparente).
 - En modo capas las **máscaras son fijas** (no se deslizan) y pueden rellenarse con el fondo de pantalla. Las **zonas fijas** (barra superior, dock) se
   dibujan con la capa de la pantalla 1 sobre el fondo y no se deslizan. Las cajas de dígitos e icono funcionan igual.
 **R9. Local.** Sin red ni cuentas. Ajustes en SharedPreferences/UserDefaults; imágenes en ficheros internos.

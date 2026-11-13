@@ -88,6 +88,8 @@ data class MagicConfig(
     val wallpaperY: Float = 0f,
     /** Modo capas: zonas que no se deslizan (barra superior, dock…): se dibujan con la capa de la pantalla 1. */
     val fixedZones: List<NRect> = emptyList(),
+    /** Modo color único: distancia al color de fondo (0..255) a partir de la cual un píxel es opaco. Más alto = más translúcido. */
+    val keyTolerance: Int = 48,
 )
 
 val AppJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }

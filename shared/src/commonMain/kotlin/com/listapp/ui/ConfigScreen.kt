@@ -17,6 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -233,6 +234,17 @@ private fun LayersSection(state: AppState, choose: (String) -> Unit) {
         fontSize = 13.sp,
         color = gray,
     )
+    if (!bw) {
+        var tol by remember(cfg.keyTolerance) { mutableStateOf(cfg.keyTolerance.toFloat()) }
+        Text("Tolerancia del color: ${tol.toInt()}", fontWeight = FontWeight.SemiBold)
+        Slider(tol, { tol = it }, valueRange = 20f..200f, onValueChangeFinished = { state.setKeyTolerance(tol.toInt()) })
+        Text(
+            "Más alta = los píxeles parecidos al fondo (carpetas translúcidas, sombras) se vuelven más transparentes. " +
+                "Para cristal translúcido el modo blanco/negro es más exacto.",
+            fontSize = 12.sp,
+            color = gray,
+        )
+    }
     for (p in 0..2) {
         val slots = if (bw) listOf(Slots.bwDark(p) to "Fondo negro", Slots.bwLight(p) to "Fondo blanco") else listOf(Slots.key(p) to "Captura")
         val ready = state.layers.containsKey(p)

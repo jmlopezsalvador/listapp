@@ -88,20 +88,20 @@ fun HomeScreen(state: AppState) {
     // Volver a la primera página cuando se hace reset.
     LaunchedEffect(state.resetCount) { pager.scrollToPage(0) }
 
-    // Dígito: al pasar de la página p a la p+1 se mira dónde empezó el dedo en la página p.
+    // Dígito candidato de cada página (0 = decenas, 1 = unidades): se decide al poner el dedo (dónde cae) y se confirma
+    // en cuanto la página cambia. Así no depende de que la animación termine ni de que el siguiente deslizamiento
+    // (si se hace enseguida) pise la posición del anterior. -1 = ninguno.
+    val candidates = remember { IntArray(2) { -1 } }
     LaunchedEffect(pager) {
-        var prev = pager.settledPage
-        snapshotFlow { pager.settledPage }.collect { cur ->
-            if (cur == prev + 1 && prev in 0..1 && downPage == prev && sizeNow.width > 0) {
-                val hit = hitIndex(prev, downPos)
-                when {
-                    hit >= 0 -> {
-                        val d = digitOfIndex(hit)
-                        if (prev == 0) state.tens = d else state.units = d
-                    }
-                    cfg.outsideMode == OutsideMode.ZERO -> if (prev == 0) state.tens = 0 else state.units = 0
-                    cfg.outsideMode == OutsideMode.BLOCK -> { pager.scrollToPage(prev); prev = cur - 1; return@collect }
-                    else -> {}
+        var prev = pager.currentPage
+        snapshotFlow { pager.currentPage }.collect { cur ->
+            if (cur == prev + 1 && prev in 0..1) {
+                val d = candidates[prev]
+                if (d >= 0) {
+                    if (prev == 0) state.tens = d else state.units = d
+                } else if (cfg.outsideMode == OutsideMode.BLOCK) {
+                    pager.scrollToPage(prev)
+                    return@collect
                 }
             }
             prev = cur
@@ -121,6 +121,14 @@ fun HomeScreen(state: AppState) {
                     downPos = down.position
                     val blocked = cfg.outsideMode == OutsideMode.BLOCK && downPage in 0..1 &&
                         !(sizeNow.width > 0 && hitIndex(downPage, down.position) >= 0)
+                    if (downPage in 0..1) {
+                        val hit = hitIndex(downPage, down.position)
+                        candidates[downPage] = when {
+                            hit >= 0 -> digitOfIndex(hit)
+                            cfg.outsideMode == OutsideMode.ZERO -> 0
+                            else -> -1
+                        }
+                    }
                     if (blocked) down.consume()
                     val p = down.position
                     val s = sizeNow
