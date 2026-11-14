@@ -44,6 +44,7 @@ fun SwipeRow(
     actionsWidth: Dp,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    corner: Dp = 16.dp,
     onFullSwipe: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit,
     content: @Composable (close: () -> Unit, open: Boolean) -> Unit,
@@ -75,7 +76,7 @@ fun SwipeRow(
     Box(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(corner))
             .onSizeChanged { width = it.width.toFloat() },
     ) {
         if (offset < -1f) {

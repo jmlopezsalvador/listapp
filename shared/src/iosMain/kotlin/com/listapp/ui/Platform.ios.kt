@@ -40,7 +40,7 @@ import platform.posix.memcpy
 
 /** iOS: la barra de estado y el indicador de inicio se ocultan en ContentView.swift. */
 @Composable
-actual fun SystemBarsEffect(hidden: Boolean) {}
+actual fun SystemBarsEffect(hidden: Boolean, darkIcons: Boolean) {}
 
 /** iOS no tiene botón «atrás» del sistema: se usan las flechas de la propia app. */
 @Composable
@@ -107,6 +107,26 @@ private fun NSData.toByteArray(): ByteArray {
 
 private fun ByteArray.toNSData(): NSData = memScoped {
     NSData.create(bytes = allocArrayOf(this@toNSData), length = size.toULong())
+}
+
+@Composable
+actual fun rememberAppIconChanger(): AppIconChanger = remember { IosAppIconChanger() }
+
+/** iOS: solo cambia el icono (iconos alternativos). El nombre no se puede cambiar y el sistema muestra siempre su aviso. */
+private class IosAppIconChanger : AppIconChanger {
+    override val icons = AppIconList.icons
+    override val names = AppIconList.names
+    override val restartsApp = false
+
+    override fun currentIcon(): String = UIApplication.sharedApplication.alternateIconName ?: AppIconList.MAIN_ICON
+    override fun currentName(): String = ""
+
+    override fun select(iconId: String, nameId: String): Boolean {
+        val app = UIApplication.sharedApplication
+        if (!app.supportsAlternateIcons) return false
+        app.setAlternateIconName(if (iconId == AppIconList.MAIN_ICON) null else iconId, completionHandler = null)
+        return true
+    }
 }
 
 class UserDefaultsStore : KeyValueStore {

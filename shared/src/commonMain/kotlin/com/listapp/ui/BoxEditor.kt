@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.listapp.domain.IconBoxMode
 import com.listapp.domain.Mask
 import com.listapp.domain.NRect
 import com.listapp.domain.ScreenMode
@@ -302,14 +304,7 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                             onClear = { setDigitBoxes(List(10) { null }); selected = null },
                             otherPage = 2 - digitPage,
                         )
-                        EditTarget.Icon -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (cfg.iconBox == null) {
-                                Button(onClick = { state.updateConfig { it.copy(iconBox = DefaultBox) }; selected = 0 }) { Text("Colocar caja") }
-                            } else {
-                                OutlinedButton(onClick = { state.updateConfig { it.copy(iconBox = null) }; selected = null }) { Text("Quitar caja") }
-                            }
-                            Text("Ajústala sobre el icono de la app de listas de la captura.", Modifier.weight(1f), fontSize = 13.sp)
-                        }
+                        EditTarget.Icon -> IconPanel(state) { selected = it }
                         EditTarget.Masks -> MasksPanel(
                             state = state,
                             selected = selected,
@@ -361,6 +356,69 @@ private fun DigitsPanel(
         OutlinedButton(onClick = onRemove, enabled = selected != null) { Text("Quitar caja") }
         OutlinedButton(onClick = onClear) { Text("Quitar todas") }
     }
+}
+
+/** Caja de la pantalla 3: botón invisible, o «icono» (tapa el de la captura con el fondo y dibuja uno de la app). */
+@Composable
+private fun IconPanel(state: AppState, onSelect: (Long?) -> Unit) {
+    val cfg = state.config
+    val fullMode = cfg.mode == ScreenMode.FULL
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (cfg.iconBox == null) {
+            Button(onClick = { state.updateConfig { it.copy(iconBox = DefaultBox) }; onSelect(0) }) { Text("Colocar caja") }
+        } else {
+            OutlinedButton(onClick = { state.updateConfig { it.copy(iconBox = null) }; onSelect(null) }) { Text("Quitar caja") }
+        }
+        Text("Ajústala sobre el icono de la app de listas de la captura.", Modifier.weight(1f), fontSize = 13.sp)
+    }
+    Text("Qué es la caja", fontWeight = FontWeight.SemiBold)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (m in IconBoxMode.entries) {
+            Chip(m.label, cfg.iconMode == m) {
+                state.updateConfig { c ->
+                    // al pasar a «Icono» sin caja se coloca una cuadrada de tamaño de icono
+                    c.copy(iconMode = m, iconBox = c.iconBox ?: if (m == IconBoxMode.ICON) NRect(0.4f, 0.4f, 0.17f, 0.078f) else null)
+                }
+            }
+        }
+    }
+    if (cfg.iconMode == IconBoxMode.INVISIBLE) {
+        Text("La caja es un botón invisible: no se ve nada, solo reacciona al tocar el icono de la captura.", fontSize = 13.sp)
+        return
+    }
+    Text("Tamaño del icono: ${(cfg.iconScale * 100).roundToInt()} %", fontWeight = FontWeight.SemiBold)
+    Slider(cfg.iconScale, { v -> state.updateConfig { it.copy(iconScale = v) } }, valueRange = 0.4f..2.5f)
+    Text("El icono va centrado en la caja y mantiene siempre su proporción: la caja solo decide dónde está y qué se tapa.", fontSize = 12.sp)
+    Text("Elige el icono que se verá en esa posición:", fontSize = 13.sp)
+    for (row in FakeIcons.all.chunked(4)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            for (icon in row) {
+                val picked = cfg.iconId == icon.id
+                Column(
+                    Modifier.weight(1f).clickable { state.updateConfig { it.copy(iconId = icon.id) } },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .border(if (picked) 3.dp else 1.dp, if (picked) Accent else Color.Gray, RoundedCornerShape(13.dp)),
+                    ) { IconImage(icon.id) }
+                    Text(icon.label, fontSize = 10.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+            repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+        }
+    }
+    Text(
+        if (fullMode) {
+            "La caja tapa el icono original con el mismo trozo de la «imagen limpia» (Escritorio → Máscaras) y dibuja encima el icono elegido. " +
+                "Sin imagen limpia, lo rellena con el color de al lado."
+        } else {
+            "La caja borra el icono original de la captura y deja ver el fondo de pantalla; encima dibuja el icono elegido."
+        },
+        fontSize = 12.sp,
+    )
 }
 
 @Composable
@@ -523,7 +581,7 @@ private fun MasksPanel(
 
 /** Campo «#RRGGBB». Solo aplica el cambio cuando el texto es un color válido. */
 @Composable
-private fun HexField(color: Long, width: Int = 120, onColor: (Long) -> Unit) {
+internal fun HexField(color: Long, width: Int = 120, onColor: (Long) -> Unit) {
     val current = "#" + (color and 0xFFFFFF).toString(16).uppercase().padStart(6, '0')
     var text by remember(current) { mutableStateOf(current) }
     OutlinedTextField(

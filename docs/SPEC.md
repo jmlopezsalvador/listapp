@@ -19,13 +19,17 @@ El mago enseña el móvil y cuenta que hace listas de todo (juegos de mesa, mús
    No son botones normales: hay que **mantener el dedo quieto** el tiempo configurado (1,5 s por defecto; vibración corta al activarse); un toque no hace nada (R11).
 
 ## Requisitos
-**R1. Escritorio simulado.** 3 páginas con imagen de fondo propia (capturas de galería). Sin imagen se muestra un marcador.
+**R1. Escritorio simulado.** 3 páginas con imagen de fondo propia (capturas de galería). Sin imagen (app nueva) se muestra un marcador con el recuadro del botón oculto de configuración dibujado con línea discontinua y la indicación de mantenerlo pulsado.
 **R2. Dígitos.** Páginas 1 y 2: 10 cajas configurables por página (posición y tamaño libres, independientes entre páginas).
 Si el dedo empieza fuera de las cajas, se aplica el modo elegido en config (**outsideMode**): *Ignorar* (el dígito no cambia y se cambia de página),
 *Bloquear* (no se puede deslizar sin tocar una caja válida) o *Dígito 0* (vale 0 y se cambia de página). Si al abrir la app falta algún dígito,
 se abre sin insertar nada. El número 00 no inserta nada.
 El dígito se decide al poner el dedo (en qué caja cae) y se confirma en cuanto la página cambia, sin esperar a que termine la animación: se puede deslizar muy rápido.
-**R3. Icono.** Página 3: una caja configurable que abre la app de listas. No lleva imagen propia (va sobre el icono de la captura).
+**R3. Icono.** Página 3: una caja configurable que abre la app de listas. Tiene dos modos: *Invisible* (solo un botón sobre el icono de la captura) e
+*Icono*: la caja tapa el icono original con el fondo (pantalla completa: el mismo trozo de la «imagen limpia», o el color de al lado si no hay;
+iconos deslizantes: abre un hueco en la capa y deja ver el fondo de pantalla) y dibuja encima uno de los iconos incrustados en la app
+(Apple Notas, Apple Recordatorios, Workflowy, Listonic, AnyList), con esquinas redondeadas. El icono va **centrado en la caja, cuadrado y con tamaño propio**
+(≈ 17 % del ancho de pantalla × un zoom ajustable con un deslizador, del 40 % al 250 %): la caja solo decide la posición y qué se tapa, y el icono nunca se deforma.
 **R4. Máscaras** (se configuran una vez, comunes a las tres páginas; cada página dibuja las suyas y viajan con su captura al deslizar): cajas que tapan elementos de la captura.
 Cada máscara se rellena con un color o con la «imagen limpia» (captura sin esos elementos, recortada en la misma zona) y puede mostrar
 la **hora real del sistema** en tiempo real (HH:mm) con color y tamaño configurables.
@@ -42,6 +46,7 @@ Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera ce
 **R8. Configuración**, organizada en secciones desplegables (se recuerda cuáles están abiertas al ir a un editor y volver):
 - *Efecto*: las palabras (lista → palabra), con el botón «Añadir palabra» (R6).
 - *Escritorio*: «Modo y capturas» (R10), «Dedo fuera de las cajas» (R2), «Botones ocultos» (R11) y «Máscaras» (R4), con los editores visuales de cajas.
+- *Aspecto de las listas*: personalizador de la app de listas «falsa» con vista previa fija que se actualiza al momento (R12).
 - *Instrucciones*: texto sencillo y sin tecnicismos con el objetivo de la app, el efecto paso a paso y para qué sirve cada sección de la configuración.
 **R10. Modos del escritorio** (config). Dos modos para construir las páginas:
 - *Pantalla completa*: cada página es una captura entera que se desliza (R1). Las máscaras viajan con su página.
@@ -54,6 +59,20 @@ Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera ce
 **R11. Botones ocultos.** Reset y configuración son dos cajas invisibles que se activan manteniendo el dedo quieto dentro. Su posición y tamaño se eligen
 en el editor «Botones ocultos» (una sola posición para todas las pantallas, con las capturas disponibles como fondo de ayuda) y cada una tiene su tiempo
 de pulsación (0,5 a 5 s; por defecto 1,5 s).
+**R12. Aspecto de las listas.** Personalizador (Config → Aspecto de las listas) para que la app de listas se parezca a la que el mago usa de verdad:
+tema (del sistema, claro, oscuro); colores de fondo, letra, detalles (números y botones) y tarjetas (cada uno automático, de una paleta o #RRGGBB);
+filas como tarjetas, con separadores o sin separadores; esquinas (rectas, suaves, redondas); números en círculo o solo el número; tamaño de letra
+(pequeña, normal, grande); tipo de letra (normal, con serifa, monoespaciada) y densidad de las filas (compacta, normal, amplia). Con vista previa
+(elementos o lista de listas) y botón «Restablecer el aspecto». Solo afecta a la app de listas; la configuración y el escritorio no cambian.
+**R13. Icono y nombre de la app.** Desde Configuración → «Icono y nombre de la app» se elige, ya instalada, el icono y el nombre que enseña el móvil
+en el lanzador. Solo entre los preestablecidos (son recursos compilados). *Android*: icono y nombre con alias de actividad (5 iconos × 5 nombres; por defecto
+Apple Notas + «ListApp»; nombres: ListApp, Listas, Notas, Recordatorios, Lists). *iOS*: solo el icono (principal Apple Notas; alternativo Apple Recordatorios);
+el nombre no se puede cambiar y el sistema muestra su aviso. **Al tocar un icono o un nombre sale una confirmación** («¿Cambiar icono?» / «¿Cambiar nombre?»,
+con el cambio y «La aplicación se reiniciará por completo (se cerrará y volverá a abrir)» en Android); si se cancela no cambia nada. En Android se abre la app de nuevo
+por el alias nuevo antes de desactivar el anterior. Al arrancar se normaliza para que haya un único alias activo. El apartado plegado muestra la miniatura y el valor actual.
+**R14. Guía de introducción.** Modal de 6 pasos con ilustraciones (dibujadas en la app): qué es, preparar las palabras, hacer las capturas, marcar las cajas,
+usarlo en directo (incluido el reset) y cómo seguir explorando (opciones avanzadas e Instrucciones). Se abre con el botón «Guía» de la pantalla de bienvenida
+(app nueva, bajo el texto) y con «Ver la guía rápida» al principio de las Instrucciones. Navegación con Anterior / Siguiente, puntos de progreso y «Cerrar».
 **R9. Local.** Sin red ni cuentas. Ajustes en SharedPreferences/UserDefaults; imágenes en ficheros internos.
 
 ## Preguntas abiertas

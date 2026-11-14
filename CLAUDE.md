@@ -43,6 +43,16 @@ Código: `shared/src/commonMain/kotlin/com/listapp/`
 Modos del escritorio (`ScreenMode`): pantalla completa (captura entera por página) o **iconos deslizantes** `LAYERS_BW` (fondo fijo + capa de iconos con transparencia, calculada
 con `domain/Matting.kt` a partir de dos capturas por página, con fondo negro y con fondo blanco). En iconos deslizantes las máscaras y las zonas fijas
 (`fixedZones`: barra superior, dock) no se deslizan. Los botones ocultos de reset/config son cajas (`resetBox`, `configBox`) con tiempos de pulsación propios. Las capas procesadas se cachean en ficheros `layer_*.raw`; `imageFromPixels` (expect/actual) las convierte en bitmap.
+La **guía de introducción** (`ui/GuideDialog.kt`, 6 pasos con ilustraciones hechas con Compose) se abre con `state.showGuide` desde la bienvenida y desde las Instrucciones; si cambia el flujo de uso o la configuración mínima, hay que actualizar sus textos.
+**Icono y nombre de la app** (Config → «Icono y nombre de la app»; `AppIconChanger` con `expect/actual`): todo lo derivado lo genera `tools/generar_iconos.py`
+(Pillow; no editar a mano lo marcado «GENERADO»). Android: un `<activity-alias>` por icono × nombre en el manifiesto (entre las marcas `GENERADO`), solo
+el de por defecto está `enabled`; `MainActivity` ya no lleva el filtro de lanzador. iOS: iconos alternativos (`<id>.appiconset` + `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`
+en `project.yml`); el nombre no se puede cambiar. **Añadir un icono**: PNG en `data/icons/png/<id>.png` + entrada (id, label) en `data/icons/fuentes.json`
+(o en `EXTRA_ICONS` del script) y, si va a Android/iOS, su id en las listas de arriba del script (`ANDROID_ICONS`, `IOS_ALTERNATES`); ejecutar `python tools/generar_iconos.py`.
+**Añadir un nombre**: una línea en `NAMES` y volver a ejecutarlo. Por defecto: icono Apple Notas, nombre «ListApp» (si cambia el icono por defecto, hay que cambiar a mano el `android:icon` de `<application>` en el manifiesto). Al cambiar icono o nombre se pide confirmación y la app se reinicia (Android). Los iconos opacos a cuadrado completo se ponen en modo `inset` (290 px sobre el color del borde);
+`bleed` (a sangre) los recorta. Para probar: `adb install -r` conserva el estado de los alias, así que tras probar hay que dejar solo el de por defecto
+(`pm disable` de los demás y `pm enable com.listapp/.Icon_apple_notes_listapp`). Los iconos de la caja de la pantalla 3 (modo «Icono») están incrustados en base64 en `ui/FakeIconsData.kt` (**GENERADO** por `tools/generar_iconos.py` a partir de `data/icons/`; para añadir uno: PNG en `data/icons/png/`, entrada en `data/icons/fuentes.json` y volver a ejecutar el script). `ui/FakeIcons.kt` los decodifica.
+El aspecto de la app de listas es personalizable (`ListStyle` en la config; `ui/ListLook.kt` lo resuelve y `ListStyleScreen.kt` es el personalizador con vista previa): se aplica con `ListLookTheme` solo a las pantallas de listas.
 Las cajas se guardan en **fracciones (0..1)** de la pantalla completa; Home y editor ocultan las barras del sistema para que coincidan con las capturas.
 Estado: Android probado en emulador; **iOS sin compilar todavía** (selector de fotos con `UIImagePickerController` y almacén de ficheros escritos sin probar).
 

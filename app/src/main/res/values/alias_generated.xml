@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GENERADO por tools/generar_iconos.py: no editar a mano. -->
+<resources>
+    <color name="ic_bg_apple_notes">#EFE6B8</color>
+    <color name="ic_bg_apple_reminders">#EDEDED</color>
+    <color name="ic_bg_workflowy">#5287AD</color>
+    <color name="ic_bg_listonic">#269F38</color>
+    <color name="ic_bg_anylist">#17ACEB</color>
+    <string name="icon_name_listapp">ListApp</string>
+    <string name="icon_name_listas">Listas</string>
+    <string name="icon_name_notas">Notas</string>
+    <string name="icon_name_recordatorios">Recordatorios</string>
+    <string name="icon_name_lists">Lists</string>
+</resources>

@@ -105,7 +105,7 @@ fun TopBar(title: String, onBack: (() -> Unit)?, trailing: @Composable () -> Uni
 
 /** Cabecera grande de las pantallas de listas: título + subtítulo. */
 @Composable
-private fun LargeHeader(title: String, subtitle: String, onBack: (() -> Unit)?, trailing: @Composable () -> Unit = {}) {
+internal fun LargeHeader(title: String, subtitle: String, onBack: (() -> Unit)?, trailing: @Composable () -> Unit = {}) {
     Column(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 8.dp)) {
         Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) BackArrow(onBack) else Box(Modifier.width(16.dp))
@@ -121,7 +121,7 @@ private fun LargeHeader(title: String, subtitle: String, onBack: (() -> Unit)?, 
 
 /** Signo «+» dibujado con Canvas. */
 @Composable
-private fun PlusSign(color: Color, sizeDp: Int = 20) {
+internal fun PlusSign(color: Color, sizeDp: Int = 20) {
     Canvas(Modifier.size(sizeDp.dp)) {
         val w = 2.5.dp.toPx()
         drawLine(color, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), w, StrokeCap.Round)
@@ -150,10 +150,7 @@ fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun cardColor() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-
-@Composable
-private fun SwipeAction(label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun SwipeAction(label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier.fillMaxHeight().background(color).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -179,31 +176,13 @@ fun ListsScreen(state: AppState) {
                 }
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                     itemsIndexed(state.lists, key = { _, l -> l.id }) { _, l ->
-                        SwipeRow(
-                            actionsWidth = 176.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp).height(76.dp),
-                            actions = {
-                                SwipeAction("Renombrar", MaterialTheme.colorScheme.primary, Modifier.weight(1f)) { renaming = l }
-                                SwipeAction("Borrar", Color(0xFFD32F2F), Modifier.weight(1f)) {
-                                    state.updateLists { ls -> ls.filter { it.id != l.id } }
-                                }
-                            },
-                        ) { close, open ->
-                            Row(
-                                Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                                    .clickable { if (open) close() else state.screen = Screen.Detail(l.id) }
-                                    .padding(horizontal = 18.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(l.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${l.items.size} elementos", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Text("›", fontSize = 26.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
+                        ListRowCard(
+                            name = l.name,
+                            count = l.items.size,
+                            onOpen = { state.screen = Screen.Detail(l.id) },
+                            onRename = { renaming = l },
+                            onDelete = { state.updateLists { ls -> ls.filter { it.id != l.id } } },
+                        )
                     }
                 }
             }
@@ -244,12 +223,43 @@ fun ListsScreen(state: AppState) {
     }
 }
 
+/** Una lista en la «lista de listas»: tarjeta o fila según el aspecto elegido; deslizar descubre Renombrar y Borrar. */
+@Composable
+internal fun ListRowCard(name: String, count: Int, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    val look = LocalListLook.current ?: return
+    val h = look.rowHeight + 22.dp
+    SwipeRow(
+        actionsWidth = 176.dp,
+        corner = if (look.cards) look.corner else 0.dp,
+        modifier = if (look.cards) Modifier.padding(horizontal = 16.dp, vertical = 5.dp).height(h) else Modifier.height(h + 10.dp),
+        actions = {
+            SwipeAction("Renombrar", MaterialTheme.colorScheme.primary, Modifier.weight(1f), onRename)
+            SwipeAction("Borrar", Color(0xFFD32F2F), Modifier.weight(1f), onDelete)
+        },
+    ) { close, open ->
+        Row(
+            Modifier
+                .fillMaxSize()
+                .background(if (look.cards) look.card else look.bg)
+                .rowDivider(look)
+                .clickable { if (open) close() else onOpen() }
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$count elementos", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("›", fontSize = 26.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 // ------------------------------------------------------------------ Elementos de una lista
 
 /** Fila en pantalla: id estable (para animar y reordenar) + texto. */
 private data class ItemRow(val id: Long, val text: String)
 
-private val SlotHeight = 60.dp // 54 de tarjeta + 3 de margen arriba y abajo
 private const val REORDER_HOLD_MS = 1000L
 
 @Composable
@@ -267,7 +277,9 @@ fun ListDetailScreen(state: AppState, listId: Long) {
     var editingId by remember(listId) { mutableStateOf<Long?>(null) }
     val lazy = rememberLazyListState()
     val density = LocalDensity.current
-    val slotPx = with(density) { SlotHeight.toPx() }
+    val look = LocalListLook.current
+    // Hueco de cada fila: alto de la tarjeta + 3 de margen arriba y abajo.
+    val slotPx = with(density) { ((look?.rowHeight ?: 54.dp) + 6.dp).toPx() }
 
     // Guarda en la lista real (las filas vacías en edición no se guardan).
     fun persist() {
@@ -401,8 +413,8 @@ fun ListDetailScreen(state: AppState, listId: Long) {
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 3.dp)
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .height(look?.rowHeight ?: 54.dp)
+                        .clip(RoundedCornerShape(look?.corner ?: 16.dp))
                         .clickable { addAtEnd() }
                         .padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -417,7 +429,7 @@ fun ListDetailScreen(state: AppState, listId: Long) {
 }
 
 @Composable
-private fun ItemCard(
+internal fun ItemCard(
     number: Int,
     text: String,
     editing: Boolean,
@@ -437,13 +449,17 @@ private fun ItemCard(
     val dragStart by rememberUpdatedState(onDragStart)
     val dragMove by rememberUpdatedState(onDrag)
     val dragEnd by rememberUpdatedState(onDragEnd)
-    val shape = RoundedCornerShape(16.dp)
+    val look = LocalListLook.current ?: return
+    val shape = RoundedCornerShape(if (look.cards) look.corner else 0.dp)
 
     SwipeRow(
         actionsWidth = 96.dp,
+        corner = if (look.cards) look.corner else 0.dp,
         modifier = modifier
-            .padding(horizontal = 16.dp, vertical = 3.dp)
-            .height(54.dp)
+            .then(
+                if (look.cards) Modifier.padding(horizontal = 16.dp, vertical = 3.dp).height(look.rowHeight)
+                else Modifier.height(look.rowHeight + 6.dp),
+            )
             .then(if (dragging) Modifier.shadow(10.dp, shape) else Modifier),
         enabled = !editing && !dragging,
         onFullSwipe = onDelete,
@@ -452,9 +468,8 @@ private fun ItemCard(
         Row(
             Modifier
                 .fillMaxSize()
-                .background(
-                    if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                )
+                .background(if (look.cards) look.card else look.bg)
+                .rowDivider(look)
                 .clickable(enabled = !editing) {
                     if (suppressTap) suppressTap = false else if (open) close() else onTap()
                 }
@@ -471,15 +486,26 @@ private fun ItemCard(
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.size(30.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
+            if (look.style.numbers == com.listapp.domain.NumberStyle.CIRCLE) {
+                Box(
+                    Modifier.size(30.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "$number",
+                        fontSize = if (number < 100) 13.sp else 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            } else {
                 Text(
                     "$number",
-                    fontSize = if (number < 100) 13.sp else 11.sp,
+                    Modifier.width(30.dp),
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
                 )
             }
             Spacer(Modifier.width(12.dp))

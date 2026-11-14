@@ -1,0 +1,9 @@
+﻿PACK SELECCIONADO: 5 ICONOS DE APPS DE LISTAS
+Apple Recordatorios, Apple Notas, Workflowy, Listonic y AnyList.
+
+Incluye originales sin modificar, copias PNG de 512 x 512 px, vista previa, catálogo HTML y fuentes en CSV/JSON.
+Los iconos de Apple proceden de App Store; los de Workflowy, Listonic y AnyList proceden de Google Play. Son los mismos recursos del pack anterior, recopilados el 14/11/2026.
+Extrae el ZIP antes de abrir catalogo.html.
+La transparencia se conserva cuando existe en el original; los archivos opacos siguen siendo opacos. No se ha ampliado artificialmente la resolución.
+Un icono por aplicación. No se incluyen otras variantes de plataforma o tema.
+Los iconos y marcas pertenecen a sus titulares. Esta recopilación no concede licencias comerciales.

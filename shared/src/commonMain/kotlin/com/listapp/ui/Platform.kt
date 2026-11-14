@@ -8,9 +8,12 @@ import androidx.compose.ui.graphics.ImageBitmap
  * Todo lo demás va en común.
  */
 
-/** Oculta (modo inmersivo) o muestra las barras del sistema. En iOS las gestiona ContentView.swift. */
+/**
+ * Oculta (modo inmersivo) o muestra las barras del sistema. `darkIcons`: iconos oscuros (para fondos claros).
+ * En iOS las gestiona ContentView.swift.
+ */
 @Composable
-expect fun SystemBarsEffect(hidden: Boolean)
+expect fun SystemBarsEffect(hidden: Boolean, darkIcons: Boolean)
 
 /** Botón «atrás» del sistema (Android). En iOS no hace nada. */
 @Composable

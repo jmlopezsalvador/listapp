@@ -25,6 +25,7 @@ sealed interface Screen {
     data object Lists : Screen
     data class Detail(val listId: Long) : Screen
     data object Config : Screen
+    data object ListStyle : Screen
     data class Editor(val target: EditTarget) : Screen
 }
 
@@ -73,6 +74,9 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
     /** Sube cada vez que hay un reset para que el escritorio vuelva a la primera página. */
     var resetCount by mutableIntStateOf(0)
         private set
+
+    /** Guía de introducción abierta (se puede abrir desde la pantalla de bienvenida y desde las Instrucciones). */
+    var showGuide by mutableStateOf(false)
 
     /** Secciones desplegadas de la pantalla de configuración (solo en memoria). */
     val openSections = mutableStateMapOf("efecto" to true)

@@ -69,6 +69,54 @@ enum class ScreenMode(val label: String) {
     LAYERS_BW("Iconos deslizantes"),
 }
 
+/** Qué es la caja de la pantalla 3 que abre la app de listas. */
+@Serializable
+enum class IconBoxMode(val label: String) {
+    /** Solo un botón invisible sobre el icono de la captura. */
+    INVISIBLE("Invisible"),
+
+    /** Tapa el icono de la captura con el fondo y dibuja encima uno de los iconos de la app. */
+    ICON("Icono"),
+}
+
+/** Aspecto de la app de listas (todo opcional: «null» = el color automático del tema). */
+@Serializable
+enum class ThemeMode(val label: String) { SYSTEM("Del sistema"), LIGHT("Claro"), DARK("Oscuro") }
+
+@Serializable
+enum class RowStyle(val label: String) { CARDS("Tarjetas"), DIVIDERS("Con separadores"), PLAIN("Sin separadores") }
+
+@Serializable
+enum class CornerStyle(val label: String, val dp: Int) { SQUARE("Rectas", 0), SOFT("Suaves", 10), ROUND("Redondas", 18) }
+
+@Serializable
+enum class NumberStyle(val label: String) { CIRCLE("En círculo"), PLAIN("Solo el número") }
+
+@Serializable
+enum class FontSize(val label: String, val scale: Float) { SMALL("Pequeña", 0.9f), NORMAL("Normal", 1f), LARGE("Grande", 1.15f) }
+
+@Serializable
+enum class FontStyle(val label: String) { SANS("Normal"), SERIF("Con serifa"), MONO("Monoespaciada") }
+
+@Serializable
+enum class RowDensity(val label: String, val dp: Int) { COMPACT("Compacta", 46), NORMAL("Normal", 54), ROOMY("Amplia", 66) }
+
+@Serializable
+data class ListStyle(
+    val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** Colores 0xAARRGGBB; null = automático. */
+    val bg: Long? = null,
+    val text: Long? = null,
+    val accent: Long? = null,
+    val card: Long? = null,
+    val rows: RowStyle = RowStyle.CARDS,
+    val corners: CornerStyle = CornerStyle.ROUND,
+    val numbers: NumberStyle = NumberStyle.CIRCLE,
+    val fontSize: FontSize = FontSize.NORMAL,
+    val font: FontStyle = FontStyle.SANS,
+    val density: RowDensity = RowDensity.NORMAL,
+)
+
 /** Configuración secreta: pares, máscaras y cajas de las pantallas. */
 @Serializable
 data class MagicConfig(
@@ -77,6 +125,11 @@ data class MagicConfig(
     /** Páginas 1 y 2: 10 cajas cada una; posición i = dígito (i+1)%10 (la última es el 0). */
     val digitBoxes: List<List<NRect?>> = List(2) { List(10) { null } },
     val iconBox: NRect? = null,
+    val iconMode: IconBoxMode = IconBoxMode.INVISIBLE,
+    /** Icono que se dibuja en la caja cuando el modo es ICON (id de `FakeIcons`). */
+    val iconId: String = "apple_notes",
+    /** Zoom del icono (1 = tamaño normal, ≈ 17 % del ancho de pantalla). No depende del tamaño de la caja. */
+    val iconScale: Float = 1f,
     val outsideMode: OutsideMode = OutsideMode.KEEP,
     val mode: ScreenMode = ScreenMode.FULL,
     /** Modo capas: ajuste del fondo fijo (zoom sobre «rellenar pantalla» y desplazamiento en fracciones de pantalla). */
@@ -90,6 +143,7 @@ data class MagicConfig(
     val configBox: NRect = NRect(0.8f, 0f, 0.2f, 0.07f),
     val resetHoldMs: Int = 1500,
     val configHoldMs: Int = 1500,
+    val listStyle: ListStyle = ListStyle(),
 )
 
 // coerceInputValues: un valor desconocido (p. ej. un modo que ya no existe) vuelve al valor por defecto en vez de fallar.

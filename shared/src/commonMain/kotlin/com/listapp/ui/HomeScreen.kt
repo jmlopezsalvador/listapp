@@ -6,7 +6,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import com.listapp.domain.NRect
+import com.listapp.domain.IconBoxMode
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -183,14 +199,14 @@ fun HomeScreen(state: AppState) {
             HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
                 // Las máscaras (comunes en config) se dibujan dentro de cada página: viajan con su captura al deslizar.
                 Box(Modifier.fillMaxSize()) {
-                    PageImage(state.images[Slots.pages[page]], page)
+                    FullPage(state, page, showHint = true)
                     MaskLayer(state, Modifier.fillMaxSize())
                 }
             }
         } else {
             // Modo capas: el fondo y las máscaras quedan fijos; solo se desliza la capa de iconos.
             WallpaperLayer(state)
-            HorizontalPager(pager, Modifier.fillMaxSize()) { page -> LayerPage(state, page) }
+            HorizontalPager(pager, Modifier.fillMaxSize()) { page -> LayerPage(state, page, showHint = true) }
             FixedZonesLayer(state)
             MaskLayer(state, Modifier.fillMaxSize())
         }
@@ -208,7 +224,7 @@ fun PageImage(image: ImageBitmap?, page: Int, modifier: Modifier = Modifier.fill
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Pantalla ${page + 1}\nsin captura\n\nConfiguración: esquina superior derecha",
+                "Pantalla ${page + 1}\nsin captura",
                 color = Color(0x99FFFFFF),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
@@ -342,19 +358,161 @@ fun WallpaperLayer(state: AppState, modifier: Modifier = Modifier.fillMaxSize())
     }
 }
 
-/** Capa de iconos de una página (con transparencia). */
+/** Capa de iconos de una página (con transparencia). En la pantalla 3 con la caja en modo «Icono», abre un hueco y dibuja el icono. */
 @Composable
-fun LayerPage(state: AppState, page: Int, modifier: Modifier = Modifier.fillMaxSize()) {
+fun LayerPage(state: AppState, page: Int, modifier: Modifier = Modifier.fillMaxSize(), showHint: Boolean = false) {
     val img = state.layers[page]
+    val box = state.config.iconBox
+    val withIcon = page == 2 && state.config.iconMode == IconBoxMode.ICON && box != null
     if (img != null) {
-        Image(img, null, modifier, contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.Medium)
+        // Offscreen: el «borrado» solo afecta a esta capa y deja ver el fondo de pantalla de verdad (también al deslizar).
+        Box(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
+            Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.Medium)
+            if (withIcon && box != null) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawRect(
+                        Color.Black,
+                        topLeft = Offset(box.x * size.width, box.y * size.height),
+                        size = androidx.compose.ui.geometry.Size(box.w * size.width, box.h * size.height),
+                        blendMode = BlendMode.Clear,
+                    )
+                }
+                CenteredIcon(state.config.iconId, state.config.iconScale, box)
+            }
+        }
     } else {
         Box(modifier, contentAlignment = Alignment.Center) {
             Text(
-                "Pantalla ${page + 1}\n" + (state.layerStatus[page] ?: "sin capa") + "\n\nConfiguración: esquina superior derecha",
+                "Pantalla ${page + 1}\n" + (state.layerStatus[page] ?: "sin capa"),
                 color = Color(0x99FFFFFF),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            if (showHint) ConfigHint(state)
+        }
+    }
+}
+
+/** Una página en modo pantalla completa: la captura y, en la pantalla 3 con la caja en modo «Icono», el icono encima. */
+@Composable
+fun FullPage(state: AppState, page: Int, modifier: Modifier = Modifier.fillMaxSize(), showHint: Boolean = false) {
+    val img = state.images[Slots.pages[page]]
+    val box = state.config.iconBox
+    Box(modifier) {
+        PageImage(img, page)
+        if (img == null) {
+            if (showHint) ConfigHint(state)
+        } else if (page == 2 && state.config.iconMode == IconBoxMode.ICON && box != null) {
+            FractionBox(box) { IconBackdrop(state, img, box) }
+            CenteredIcon(state.config.iconId, state.config.iconScale, box)
+        }
+    }
+}
+
+/** Una caja colocada por fracciones de la pantalla (0..1) dentro de un contenedor que ocupa toda la pantalla. */
+@Composable
+fun FractionBox(rect: NRect, content: @Composable BoxScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        Box(
+            Modifier.offset(maxWidth * rect.x, maxHeight * rect.y).size(maxWidth * rect.w, maxHeight * rect.h),
+            content = content,
+        )
+    }
+}
+
+/** Tamaño normal del icono: fracción del ancho de pantalla (≈ lo que mide un icono en un móvil). */
+const val ICON_BASE_WIDTH_FRACTION = 0.17f
+
+/**
+ * El icono en el centro de la caja, cuadrado, con su tamaño (ancho de pantalla × base × zoom) y sin deformarse
+ * aunque la caja sea más grande o más pequeña. La caja solo manda en la posición y en lo que se tapa.
+ */
+@Composable
+fun CenteredIcon(id: String, scale: Float, box: NRect) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val side = maxWidth * ICON_BASE_WIDTH_FRACTION * scale
+        val cx = maxWidth * (box.x + box.w / 2f)
+        val cy = maxHeight * (box.y + box.h / 2f)
+        Box(Modifier.offset(cx - side / 2f, cy - side / 2f).size(side)) { IconImage(id) }
+    }
+}
+
+/** El icono elegido, con esquinas redondeadas (22 %) como los de un móvil. */
+@Composable
+fun IconImage(id: String, modifier: Modifier = Modifier.fillMaxSize()) {
+    // si el id ya no existe (p. ej. un icono retirado) se usa el primero de la lista
+    val img = remember(id) { FakeIcons.image(id) ?: FakeIcons.all.firstOrNull()?.let { FakeIcons.image(it.id) } } ?: return
+    BoxWithConstraints(modifier) {
+        Image(
+            img,
+            null,
+            Modifier.fillMaxSize().clip(RoundedCornerShape(minOf(maxWidth, maxHeight) * 0.22f)),
+            contentScale = ContentScale.FillBounds,
+            filterQuality = FilterQuality.Medium,
+        )
+    }
+}
+
+/** Lo que tapa el icono original de la captura: el mismo trozo de la «imagen limpia» o, sin ella, el color de al lado. */
+@Composable
+private fun IconBackdrop(state: AppState, page: ImageBitmap, box: NRect) {
+    val clean = state.images[Slots.CLEAN]
+    if (clean != null) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawImage(
+                clean,
+                srcOffset = IntOffset((box.x * clean.width).roundToInt(), (box.y * clean.height).roundToInt()),
+                srcSize = IntSize(
+                    (box.w * clean.width).roundToInt().coerceAtLeast(1),
+                    (box.h * clean.height).roundToInt().coerceAtLeast(1),
+                ),
+                dstSize = IntSize(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1)),
+                filterQuality = FilterQuality.Medium,
+            )
+        }
+    } else {
+        val color = remember(page, box) {
+            val px = ((box.x * page.width).toInt() - 3).coerceIn(0, page.width - 1)
+            val py = (box.y * page.height).toInt().coerceIn(0, page.height - 1)
+            val buf = IntArray(1)
+            page.readPixels(buf, px, py, 1, 1)
+            Color(buf[0] or (0xFF shl 24))
+        }
+        Box(Modifier.fillMaxSize().background(color))
+    }
+}
+
+/** Aviso de «app nueva»: enseña dónde está el botón oculto de configuración y cómo usarlo. */
+@Composable
+fun ConfigHint(state: AppState) {
+    val box = state.config.configBox
+    Box(Modifier.fillMaxSize()) {
+        FractionBox(box) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawRoundRect(
+                    Color(0xCCFFFFFF),
+                    cornerRadius = CornerRadius(8.dp.toPx()),
+                    style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))),
+                )
+            }
+            Text(
+                "Configuración",
+                Modifier.align(Alignment.Center),
+                color = Color.White,
+                fontSize = 10.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+        Column(
+            Modifier.align(Alignment.Center).offset(y = 110.dp).padding(horizontal = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                "Para empezar, mantén pulsado el recuadro «Configuración» durante ${seconds(state.config.configHoldMs)}",
+                color = Color(0xCCFFFFFF),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Button(onClick = { state.showGuide = true }) { Text("Guía") }
         }
     }
 }
@@ -392,7 +550,7 @@ fun FixedZonesLayer(state: AppState, modifier: Modifier = Modifier.fillMaxSize()
 @Composable
 fun PagePreview(state: AppState, page: Int, modifier: Modifier = Modifier.fillMaxSize()) {
     if (state.config.mode == ScreenMode.FULL) {
-        PageImage(state.images[Slots.pages[page]], page, modifier)
+        FullPage(state, page, modifier)
     } else {
         Box(modifier) {
             WallpaperLayer(state)

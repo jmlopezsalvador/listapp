@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +29,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -172,8 +174,70 @@ fun ConfigScreen(state: AppState) {
                 }
             }
 
+            // ---------------- Aspecto de las listas
+            Collapsible(state, "aspecto", "Aspecto de las listas", "Colores, letra y estilo de la app de listas") {
+                Text(
+                    "Cambia cómo se ve la app de listas: colores de fondo y de letra, filas con o sin separadores, tamaño y tipo de letra… " +
+                        "Mientras lo cambias ves una vista previa al momento.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = { state.screen = Screen.ListStyle }) { Text("Personalizar") }
+            }
+
+            // ---------------- Icono y nombre de la app
+            val changer = rememberAppIconChanger()
+            var curIcon by remember { mutableStateOf(changer.currentIcon()) }
+            var curName by remember { mutableStateOf(changer.currentName()) }
+            var pendingChange by remember { mutableStateOf<Pair<String, String>?>(null) }
+            val iconLabel = changer.icons.firstOrNull { it.id == curIcon }?.label ?: curIcon
+            val nameLabel = changer.names.firstOrNull { it.id == curName }?.label
+            Collapsible(
+                state, "icono_app", "Icono y nombre de la app",
+                subtitle = if (nameLabel != null) "$iconLabel · $nameLabel" else iconLabel,
+                trailing = {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(9.dp))) { IconImage(curIcon) }
+                },
+            ) {
+                // Al tocar un icono o un nombre no se cambia nada: antes hay que confirmarlo.
+                AppIconSection(changer, curIcon, curName) { i, n ->
+                    if (i != curIcon || n != curName) pendingChange = i to n
+                }
+            }
+            pendingChange?.let { (i, n) ->
+                val iconChanged = i != curIcon
+                val what = if (iconChanged) {
+                    "El icono de la app pasará a ser «${changer.icons.firstOrNull { it.id == i }?.label ?: i}»."
+                } else {
+                    "El nombre de la app pasará a ser «${changer.names.firstOrNull { it.id == n }?.label ?: n}»."
+                }
+                AlertDialog(
+                    onDismissRequest = { pendingChange = null },
+                    title = { Text(if (iconChanged) "¿Cambiar icono?" else "¿Cambiar nombre?") },
+                    text = {
+                        Text(
+                            what + "\n\n" + if (changer.restartsApp) {
+                                "La aplicación se reiniciará por completo (se cerrará y volverá a abrir)."
+                            } else {
+                                "El sistema mostrará un aviso para confirmar el cambio."
+                            },
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            pendingChange = null
+                            if (changer.select(i, n)) {
+                                curIcon = i
+                                curName = n
+                            }
+                        }) { Text("Cambiar") }
+                    },
+                    dismissButton = { TextButton(onClick = { pendingChange = null }) { Text("Cancelar") } },
+                )
+            }
+
             // ---------------- Instrucciones
-            Collapsible(state, "instrucciones", "Instrucciones", "Cómo funciona ListApp") { Instructions() }
+            Collapsible(state, "instrucciones", "Instrucciones", "Cómo funciona ListApp") { Instructions { state.showGuide = true } }
 
             Button(onClick = { state.reset() }, modifier = Modifier.fillMaxWidth()) { Text("Cerrar y volver al escritorio") }
             Text(
@@ -223,6 +287,7 @@ private fun Collapsible(
     title: String,
     subtitle: String? = null,
     nested: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val open = state.openSections[id] == true
@@ -237,6 +302,10 @@ private fun Collapsible(
                 Text(title, fontSize = if (nested) 16.sp else 20.sp, fontWeight = FontWeight.Bold)
                 if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (trailing != null) {
+                trailing()
+                Box(Modifier.width(12.dp))
+            }
             Text(if (open) "▴" else "▾", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
         }
         if (open) {
@@ -248,9 +317,65 @@ private fun Collapsible(
     }
 }
 
+/** Elegir el icono (cuadrícula con miniaturas) y, en Android, el nombre del lanzador. Se aplica al tocar, sin botón de guardar. */
+@Composable
+private fun AppIconSection(changer: AppIconChanger, iconId: String, nameId: String, onSelect: (String, String) -> Unit) {
+    val gray = MaterialTheme.colorScheme.onSurfaceVariant
+    Text("Icono", fontWeight = FontWeight.SemiBold)
+    for (row in changer.icons.chunked(4)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (icon in row) {
+                val picked = icon.id == iconId
+                Column(
+                    Modifier.weight(1f).clickable { onSelect(icon.id, nameId) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    val shape = RoundedCornerShape(14.dp) // ≈ 22 % de 64 dp
+                    Box(
+                        Modifier
+                            .size(64.dp)
+                            .clip(shape)
+                            .border(if (picked) 3.dp else 1.dp, if (picked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape),
+                    ) { IconImage(icon.id) }
+                    Text(
+                        icon.label,
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = gray,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+            repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+        }
+    }
+    if (changer.names.isNotEmpty()) {
+        Text("Nombre", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+        for (n in changer.names) {
+            Row(
+                Modifier.fillMaxWidth().clickable { onSelect(iconId, n.id) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = n.id == nameId, onClick = { onSelect(iconId, n.id) })
+                Text(n.label)
+            }
+        }
+    }
+    Text(
+        if (changer.names.isNotEmpty()) {
+            "Al elegir uno se te pedirá confirmación. La app se reinicia para aplicarlo y el móvil puede tardar unos segundos en actualizar el icono y el nombre en el lanzador."
+        } else {
+            "Al elegir uno se te pedirá confirmación. En iPhone el nombre no se puede cambiar y el sistema muestra siempre su propio aviso al cambiar de icono."
+        },
+        fontSize = 12.sp,
+        color = gray,
+    )
+}
+
 /** Qué es la app, cómo se hace el efecto y para qué sirve cada parte de la configuración, sin tecnicismos. */
 @Composable
-private fun Instructions() {
+private fun Instructions(onGuide: () -> Unit) {
     val topics = listOf(
         "¿Qué es ListApp?" to
             "Una herramienta de magia disfrazada. Parece el escritorio de un móvil normal y una app de listas de verdad, pero sin que nadie lo note " +
@@ -284,9 +409,18 @@ private fun Instructions() {
             "Se pueden rellenar con un color o con el fondo.",
         "Zonas fijas (iconos deslizantes)" to
             "Son las partes que en un móvil real no se mueven al cambiar de pantalla, como la barra de arriba o el dock de abajo.",
+        "Aspecto de las listas" to
+            "Aquí cambias cómo se ve la app de listas para que se parezca a la que usas de verdad: el color del fondo y de la letra, " +
+            "si las filas son tarjetas o líneas con o sin separadores, el tamaño y el tipo de letra, y lo apretadas que van las filas. " +
+            "Arriba tienes una vista previa que cambia al momento.",
+        "Icono y nombre de la app" to
+            "Puedes cambiar el icono y el nombre con el que aparece ListApp en tu móvil, por ejemplo para que parezca otra app de listas. " +
+            "En Android cambian los dos; en iPhone solo el icono, y el sistema muestra un aviso. Antes de cambiar te pide confirmación " +
+            "y la app se reinicia; el móvil puede tardar unos segundos en actualizar el lanzador.",
         "Un consejo" to
             "Prueba el efecto varias veces antes de actuar: practica a deslizar rápido y comprueba que las palabras aparecen donde deben.",
     )
+    Button(onClick = onGuide) { Text("Ver la guía rápida") }
     for ((title, body) in topics) {
         Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text(body, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
