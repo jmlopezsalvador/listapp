@@ -15,8 +15,8 @@ El mago enseña el móvil y cuenta que hace listas de todo (juegos de mesa, mús
 3. **Página 3 = icono de la app de listas** (una caja invisible sobre el icono de la captura). Al pulsarlo se «abre» la app y, en ese
    momento, se inserta cada palabra configurada en la posición del número (decenas·10 + unidades) de su lista.
 4. Las listas no se vuelven a modificar hasta el **reset**: cerrar la app o pulsar el botón oculto de reset.
-5. Botón oculto **reset** arriba a la izquierda y botón oculto **configuración** arriba a la derecha de las pantallas de inicio.
-   No son botones normales: hay que **mantener el dedo quieto 1,5 s** (vibración corta al activarse); un toque no hace nada.
+5. Botón oculto **reset** (por defecto arriba a la izquierda) y botón oculto **configuración** (arriba a la derecha) en las pantallas de inicio.
+   No son botones normales: hay que **mantener el dedo quieto** el tiempo configurado (1,5 s por defecto; vibración corta al activarse); un toque no hace nada (R11).
 
 ## Requisitos
 **R1. Escritorio simulado.** 3 páginas con imagen de fondo propia (capturas de galería). Sin imagen se muestra un marcador.
@@ -39,16 +39,21 @@ Si la lista no existe o es más corta que el número, no se toca. Si la palabra 
 se **mueve** a esa posición y el resto se reordena; si no está, **sustituye** al elemento de esa posición (el número de elementos de la lista nunca cambia).
 **R7. Reset.** Deshace lo insertado (restaura cada lista tal y como estaba antes del truco), olvida los dígitos y vuelve a la página 1.
 Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera cerrado sin él.
-**R8. Configuración.** Pares, imágenes de las 3 páginas, editor visual de cajas (arrastrar y redimensionar), máscaras e imagen limpia.
-**R10. Modos del escritorio** (config). Tres modos para construir las páginas:
+**R8. Configuración**, organizada en secciones desplegables (se recuerda cuáles están abiertas al ir a un editor y volver):
+- *Efecto*: las palabras (lista → palabra), con el botón «Añadir palabra» (R6).
+- *Escritorio*: «Modo y capturas» (R10), «Dedo fuera de las cajas» (R2), «Botones ocultos» (R11) y «Máscaras» (R4), con los editores visuales de cajas.
+- *Instrucciones*: texto sencillo y sin tecnicismos con el objetivo de la app, el efecto paso a paso y para qué sirve cada sección de la configuración.
+**R10. Modos del escritorio** (config). Dos modos para construir las páginas:
 - *Pantalla completa*: cada página es una captura entera que se desliza (R1). Las máscaras viajan con su página.
-- *Capas blanco/negro*: como en el iPhone, el **fondo de pantalla queda fijo** y solo se desliza la **capa de iconos**. El usuario importa la imagen
-  original del fondo (con zoom y posición ajustables) y, por cada página, dos capturas idénticas salvo el fondo (color liso negro y color liso blanco).
-  La app calcula la transparencia exacta de cada píxel (bordes, sombras, cristal del dock) y guarda la capa ya procesada.
-- *Capas color único*: una captura por página sobre un fondo liso de cualquier color (se detecta solo), que se hace transparente. Más rápido pero con
-  un ligero borde del color de fondo en los bordes. Tiene un ajuste de **tolerancia** (más alta = lo parecido al fondo, p. ej. carpetas translúcidas, se vuelve más transparente).
-- En modo capas las **máscaras son fijas** (no se deslizan) y pueden rellenarse con el fondo de pantalla. Las **zonas fijas** (barra superior, dock) se
-  dibujan con la capa de la pantalla 1 sobre el fondo y no se deslizan. Las cajas de dígitos e icono funcionan igual.
+- *Iconos deslizantes*: como en el iPhone, el **fondo de pantalla queda fijo** y solo se desliza la **capa de iconos**. El usuario importa la imagen
+  original del fondo (con zoom y posición ajustables) y, por cada página, dos capturas idénticas salvo el fondo (color liso negro y color liso blanco;
+  la pantalla de config las explica con dos dibujos de ejemplo). La app calcula la transparencia exacta de cada píxel (bordes, sombras, cristal del dock)
+  y guarda la capa ya procesada. Se retiró el modo de «color único» por ser menos exacto y complicar las instrucciones.
+- En *Iconos deslizantes* las **máscaras son fijas** (no se deslizan) y pueden rellenarse con el fondo de pantalla. Las **zonas fijas** (barra superior,
+  dock) se dibujan con la capa de la pantalla 1 sobre el fondo y no se deslizan. Las cajas de dígitos e icono funcionan igual.
+**R11. Botones ocultos.** Reset y configuración son dos cajas invisibles que se activan manteniendo el dedo quieto dentro. Su posición y tamaño se eligen
+en el editor «Botones ocultos» (una sola posición para todas las pantallas, con las capturas disponibles como fondo de ayuda) y cada una tiene su tiempo
+de pulsación (0,5 a 5 s; por defecto 1,5 s).
 **R9. Local.** Sin red ni cuentas. Ajustes en SharedPreferences/UserDefaults; imágenes en ficheros internos.
 
 ## Preguntas abiertas

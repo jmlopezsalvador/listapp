@@ -65,11 +65,8 @@ enum class ScreenMode(val label: String) {
     /** Cada página es una captura completa que se desliza entera. */
     FULL("Pantalla completa"),
 
-    /** Fondo fijo + capa de iconos obtenida con dos capturas (fondo negro y fondo blanco). */
-    LAYERS_BW("Capas blanco/negro"),
-
-    /** Fondo fijo + capa de iconos obtenida con una captura sobre un color liso. */
-    LAYERS_KEY("Capas color único"),
+    /** Fondo fijo + iconos que se deslizan; la capa de iconos se obtiene con dos capturas (fondo negro y fondo blanco). */
+    LAYERS_BW("Iconos deslizantes"),
 }
 
 /** Configuración secreta: pares, máscaras y cajas de las pantallas. */
@@ -88,11 +85,15 @@ data class MagicConfig(
     val wallpaperY: Float = 0f,
     /** Modo capas: zonas que no se deslizan (barra superior, dock…): se dibujan con la capa de la pantalla 1. */
     val fixedZones: List<NRect> = emptyList(),
-    /** Modo color único: distancia al color de fondo (0..255) a partir de la cual un píxel es opaco. Más alto = más translúcido. */
-    val keyTolerance: Int = 48,
+    /** Botones ocultos: caja de cada uno (fracciones de pantalla) y tiempo que hay que mantener el dedo quieto. */
+    val resetBox: NRect = NRect(0f, 0f, 0.2f, 0.07f),
+    val configBox: NRect = NRect(0.8f, 0f, 0.2f, 0.07f),
+    val resetHoldMs: Int = 1500,
+    val configHoldMs: Int = 1500,
 )
 
-val AppJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+// coerceInputValues: un valor desconocido (p. ej. un modo que ya no existe) vuelve al valor por defecto en vez de fallar.
+val AppJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
 
 fun digitOfIndex(i: Int) = (i + 1) % 10
 fun indexOfDigit(d: Int) = (d + 9) % 10

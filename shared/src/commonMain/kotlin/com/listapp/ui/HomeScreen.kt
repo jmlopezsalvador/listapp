@@ -53,9 +53,6 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** Tiempo que hay que mantener el dedo quieto en las esquinas ocultas (reset / configuración). */
-private const val HOLD_MS = 1500L
-
 /**
  * Escritorio simulado: 3 páginas deslizables (capturas del móvil).
  * - Página 1 y 2: el punto donde se empieza a arrastrar hacia la siguiente página da el dígito.
@@ -67,7 +64,6 @@ fun HomeScreen(state: AppState) {
     val pager = rememberPagerState { 3 }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
-    val cornerPx = with(density) { 72.dp.toPx() }
     val haptic = LocalHapticFeedback.current
 
     val cfg by rememberUpdatedState(state.config)
@@ -132,15 +128,17 @@ fun HomeScreen(state: AppState) {
                     if (blocked) down.consume()
                     val p = down.position
                     val s = sizeNow
-                    // Reset (arriba izquierda) y configuración (arriba derecha): hay que mantener el dedo quieto HOLD_MS.
+                    // Botones ocultos de reset y configuración: hay que mantener el dedo quieto dentro de su caja el tiempo configurado.
                     val corner = when {
-                        p.x < cornerPx && p.y < cornerPx -> 1
-                        p.x > s.width - cornerPx && p.y < cornerPx -> 2
+                        s.width <= 0 -> 0
+                        cfg.resetBox.contains(p.x / s.width, p.y / s.height) -> 1
+                        cfg.configBox.contains(p.x / s.width, p.y / s.height) -> 2
                         else -> 0
                     }
+                    val holdMs = (if (corner == 1) cfg.resetHoldMs else cfg.configHoldMs).toLong()
                     var moved = false
                     if (corner != 0) {
-                        val r = withTimeoutOrNull<Int>(HOLD_MS) {
+                        val r = withTimeoutOrNull<Int>(holdMs) {
                             var res = 0 // 0 = sigue pulsado, 1 = se movió, 2 = soltó antes de tiempo
                             while (res == 0) {
                                 val ev = awaitPointerEvent(PointerEventPass.Initial)

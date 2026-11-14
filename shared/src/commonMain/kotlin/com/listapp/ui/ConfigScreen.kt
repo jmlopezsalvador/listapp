@@ -1,6 +1,18 @@
 package com.listapp.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,115 +63,126 @@ fun ConfigScreen(state: AppState) {
         TopBar("Configuración", onBack = { state.screen = Screen.Home })
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // ---------------- Pares
-            Section("Pares lista → palabra")
-            Text(
-                "La palabra se escribirá en la posición del número elegido (decenas = pantalla 1, unidades = pantalla 2) de la lista con ese nombre. Si la palabra ya está en la lista, se mueve a esa posición. Si la lista es más corta que el número, no se toca.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (cfg.pairs.isEmpty()) Text("Aún no hay pares.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            for (p in cfg.pairs) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.listName, Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                    Text("→", Modifier.padding(horizontal = 8.dp))
-                    Text(p.word, Modifier.weight(1f))
-                    TextButton(onClick = { editing = p }) { Text("Editar") }
-                }
-                val exists = state.lists.any { it.name.trim().equals(p.listName.trim(), ignoreCase = true) }
-                if (!exists) Text("⚠ No existe una lista con este nombre.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
-            }
-            Button(onClick = { editing = ForcePair(-1, "", "") }) { Text("Añadir par") }
+            val gray = MaterialTheme.colorScheme.onSurfaceVariant
 
-            HorizontalDivider()
-
-            // ---------------- Dedo fuera de las cajas
-            Section("Dedo fuera de las cajas")
-            Text(
-                "Qué pasa si se empieza a deslizar en las pantallas 1 o 2 fuera de una caja de dígito. Ignorar: el dígito no cambia y se cambia de página. " +
-                    "Bloquear: no deja deslizar. Dígito 0: vale 0 y se cambia de página.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (m in com.listapp.domain.OutsideMode.entries) {
-                    Chip(m.label, cfg.outsideMode == m) { state.updateConfig { it.copy(outsideMode = m) } }
-                }
-            }
-
-            HorizontalDivider()
-
-            // ---------------- Modo del escritorio
-            Section("Modo del escritorio")
-            Text(
-                "Pantalla completa: cada página es una captura entera que se desliza. " +
-                    "Capas: el fondo de pantalla queda fijo y solo se deslizan los iconos (como en el iPhone). " +
-                    "Capas blanco/negro: dos capturas por página, resultado exacto. Capas color único: una captura por página sobre un color liso, más rápido pero menos fino.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (m in ScreenMode.entries) Chip(m.label, cfg.mode == m) { state.setMode(m) }
-            }
-
-            HorizontalDivider()
-
-            if (cfg.mode == ScreenMode.FULL) {
-                // ---------------- Pantallas (captura completa)
-                Section("Pantallas del escritorio")
+            // ---------------- Efecto
+            Collapsible(state, "efecto", "Efecto", "Las palabras que aparecerán en las listas") {
                 Text(
-                    "Capturas hechas con el propio móvil: 1 = decenas, 2 = unidades, 3 = la que tiene el icono de la app de listas.",
+                    "Elige en qué listas quieres que aparezca una palabra y cuál. Cuando alguien diga un número, la palabra aparecerá en ese puesto de esa lista. " +
+                        "Si la palabra ya estaba en la lista, se cambia de sitio; si no, sustituye a la que había en ese puesto. Si la lista es más corta que el número, no se toca.",
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = gray,
                 )
-                for (p in 0..2) {
-                    val slot = Slots.pages[p]
-                    val has = state.images.containsKey(slot)
-                    Text("Pantalla ${p + 1}" + if (has) "  ✓" else "  (sin captura)", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { choose(slot) }) { Text(if (has) "Cambiar" else "Elegir") }
-                        if (has) OutlinedButton(onClick = { state.clearImage(slot) }) { Text("Quitar") }
-                        BoxesButton(state, p)
+                if (cfg.pairs.isEmpty()) Text("Aún no hay palabras.", color = gray)
+                for (p in cfg.pairs) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(p.listName, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        Text("→", Modifier.padding(horizontal = 8.dp))
+                        Text(p.word, Modifier.weight(1f))
+                        TextButton(onClick = { editing = p }) { Text("Editar") }
+                    }
+                    val exists = state.lists.any { it.name.trim().equals(p.listName.trim(), ignoreCase = true) }
+                    if (!exists) Text("⚠ No existe una lista con este nombre.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
+                Button(onClick = { editing = ForcePair(-1, "", "") }) { Text("Añadir palabra") }
+            }
+
+            // ---------------- Escritorio
+            Collapsible(state, "escritorio", "Escritorio", "Cómo se ve y se comporta la pantalla de inicio") {
+                Collapsible(state, "esc_modo", "Modo y capturas", "Las capturas de tu móvil y cómo se mueven", nested = true) {
+                    Text(
+                        "Pantalla completa: cada página es una captura entera que se desliza al cambiar de página. " +
+                            "Iconos deslizantes: el fondo de pantalla se queda quieto y solo se deslizan los iconos, como en un móvil de verdad " +
+                            "(hacen falta más capturas, te explicamos cómo).",
+                        fontSize = 13.sp,
+                        color = gray,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (m in ScreenMode.entries) Chip(m.label, cfg.mode == m) { state.setMode(m) }
+                    }
+                    HorizontalDivider()
+                    if (cfg.mode == ScreenMode.FULL) {
+                        Text(
+                            "Capturas hechas con el propio móvil: la 1 es para la primera cifra, la 2 para la segunda y la 3 es la que tiene el icono de la app de listas.",
+                            fontSize = 13.sp,
+                            color = gray,
+                        )
+                        for (p in 0..2) {
+                            val slot = Slots.pages[p]
+                            val has = state.images.containsKey(slot)
+                            Text("Pantalla ${p + 1}" + if (has) "  ✓" else "  (sin captura)", fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { choose(slot) }) { Text(if (has) "Cambiar" else "Elegir") }
+                                if (has) OutlinedButton(onClick = { state.clearImage(slot) }) { Text("Quitar") }
+                            }
+                            BoxesButton(state, p)
+                        }
+                    } else {
+                        LayersSection(state, ::choose)
                     }
                 }
-            } else {
-                LayersSection(state, ::choose)
-            }
 
-            HorizontalDivider()
-
-            // ---------------- Máscaras
-            Section("Máscaras (comunes a las 3 pantallas)")
-            Text(
-                if (cfg.mode == ScreenMode.FULL) {
-                    "Tapan elementos de la captura (p. ej. la hora) y pueden mostrar la hora real. La «imagen limpia» es una captura sin esos elementos, para rellenar sin que se note."
-                } else {
-                    "Tapan elementos de la capa (p. ej. la hora de la barra superior) y pueden mostrar la hora real."
-                },
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (cfg.mode == ScreenMode.FULL) {
-                val hasClean = state.images.containsKey(Slots.CLEAN)
-                Text("Imagen limpia" + if (hasClean) "  ✓" else "  (opcional)", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { choose(Slots.CLEAN) }) { Text(if (hasClean) "Cambiar" else "Elegir") }
-                    if (hasClean) OutlinedButton(onClick = { state.clearImage(Slots.CLEAN) }) { Text("Quitar") }
+                Collapsible(state, "esc_dedo", "Dedo fuera de las cajas", "Qué pasa si fallas al deslizar", nested = true) {
+                    Text(
+                        "Qué pasa si empiezas a deslizar, en las pantallas 1 o 2, fuera de una caja de cifra. " +
+                            "Ignorar: se cambia de página y se queda la cifra anterior. " +
+                            "Bloquear: no deja deslizar. Dígito 0: cuenta como un 0.",
+                        fontSize = 13.sp,
+                        color = gray,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (m in com.listapp.domain.OutsideMode.entries) {
+                            Chip(m.label, cfg.outsideMode == m) { state.updateConfig { it.copy(outsideMode = m) } }
+                        }
+                    }
                 }
-            } else {
-                Text(
-                    "En modo capas las máscaras son fijas (no se deslizan) y pueden rellenarse con el fondo de pantalla.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Button(onClick = { state.screen = Screen.Editor(EditTarget.Masks) }) { Text("Editar máscaras (${cfg.masks.size})") }
 
-            HorizontalDivider()
+                Collapsible(state, "esc_botones", "Botones ocultos", "Reset y configuración", nested = true) {
+                    Text(
+                        "Reset y configuración no son botones visibles: se activan manteniendo el dedo quieto sobre su zona. " +
+                            "Aquí eliges dónde está cada zona (una sola posición para todas las pantallas) y cuánto tiempo hay que mantener.",
+                        fontSize = 13.sp,
+                        color = gray,
+                    )
+                    Text("Reset: ${seconds(cfg.resetHoldMs)} · Configuración: ${seconds(cfg.configHoldMs)}")
+                    Button(onClick = { state.screen = Screen.Editor(EditTarget.Hidden) }) { Text("Posición y tiempos") }
+                }
+
+                Collapsible(state, "esc_mascaras", "Máscaras", "Tapar la hora y poner la real", nested = true) {
+                    Text(
+                        if (cfg.mode == ScreenMode.FULL) {
+                            "Tapan elementos de la captura (por ejemplo la hora) y pueden mostrar la hora real. La «imagen limpia» es una captura sin esos elementos, para rellenar sin que se note."
+                        } else {
+                            "Tapan elementos de la captura (por ejemplo la hora de la barra superior) y pueden mostrar la hora real. Quedan fijas: no se deslizan."
+                        },
+                        fontSize = 13.sp,
+                        color = gray,
+                    )
+                    if (cfg.mode == ScreenMode.FULL) {
+                        val hasClean = state.images.containsKey(Slots.CLEAN)
+                        Text("Imagen limpia" + if (hasClean) "  ✓" else "  (opcional)", fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { choose(Slots.CLEAN) }) { Text(if (hasClean) "Cambiar" else "Elegir") }
+                            if (hasClean) OutlinedButton(onClick = { state.clearImage(Slots.CLEAN) }) { Text("Quitar") }
+                        }
+                    }
+                    Button(onClick = { state.screen = Screen.Editor(EditTarget.Masks) }) { Text("Editar máscaras (${cfg.masks.size})") }
+                }
+            }
+
+            // ---------------- Instrucciones
+            Collapsible(state, "instrucciones", "Instrucciones", "Cómo funciona ListApp") { Instructions() }
+
             Button(onClick = { state.reset() }, modifier = Modifier.fillMaxWidth()) { Text("Cerrar y volver al escritorio") }
-            Text("", Modifier.width(1.dp).padding(bottom = 24.dp))
+            Text(
+                "Desarrollado por WikiCode - Adri & Semi 2026",
+                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 32.dp),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
         }
     }
 
@@ -192,6 +215,84 @@ fun ConfigScreen(state: AppState) {
     }
 }
 
+/** Sección desplegable de la configuración. `nested`: versión más pequeña para las que van dentro de otra. */
+@Composable
+private fun Collapsible(
+    state: AppState,
+    id: String,
+    title: String,
+    subtitle: String? = null,
+    nested: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val open = state.openSections[id] == true
+    val shape = RoundedCornerShape(if (nested) 12.dp else 16.dp)
+    val bg = if (nested) MaterialTheme.colorScheme.surface.copy(alpha = 0.75f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    Column(Modifier.fillMaxWidth().clip(shape).background(bg)) {
+        Row(
+            Modifier.fillMaxWidth().clickable { state.openSections[id] = !open }.padding(horizontal = 16.dp, vertical = if (nested) 12.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = if (nested) 16.sp else 20.sp, fontWeight = FontWeight.Bold)
+                if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (open) "▴" else "▾", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+        }
+        if (open) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) { content() }
+        }
+    }
+}
+
+/** Qué es la app, cómo se hace el efecto y para qué sirve cada parte de la configuración, sin tecnicismos. */
+@Composable
+private fun Instructions() {
+    val topics = listOf(
+        "¿Qué es ListApp?" to
+            "Una herramienta de magia disfrazada. Parece el escritorio de un móvil normal y una app de listas de verdad, pero sin que nadie lo note " +
+            "hace aparecer, en el número que diga un espectador, las palabras que tú has preparado.",
+        "El efecto, paso a paso" to
+            "1. Enseñas el móvil y cuentas que haces listas de todo: juegos, música, países…\n" +
+            "2. Un espectador dice un número, por ejemplo el 37. Si es de una sola cifra, piensa en él con un cero delante: el 7 es 07.\n" +
+            "3. En la primera pantalla del escritorio pones el dedo sobre la primera cifra (el 3) y deslizas a la siguiente pantalla. " +
+            "En la segunda pones el dedo sobre la segunda cifra (el 7) y deslizas otra vez. Nadie ve las cajas de las cifras: parece que solo cambias de página.\n" +
+            "4. En la tercera pantalla tocas el icono de la app de listas.\n" +
+            "5. Entras en cada lista y pides al espectador que lea el elemento de ese número: ahí estará tu palabra.\n" +
+            "6. Para repetirlo, mantén el dedo quieto en la zona oculta de reset (o cierra la app).",
+        "Efecto" to
+            "Aquí preparas las palabras. Pulsa «Añadir palabra», elige una de tus listas y escribe la palabra que quieres que salga. " +
+            "Puedes poner una palabra por lista. Si la palabra ya estaba en la lista, se cambia de sitio; si no, ocupa el lugar de la que había, " +
+            "así la lista nunca crece. Si una lista es más corta que el número elegido, se deja como está.",
+        "Escritorio: modo y capturas" to
+            "Aquí montas el escritorio falso con capturas de pantalla de tu móvil. Hay dos formas. " +
+            "«Pantalla completa» es la más sencilla: haces una captura de cada una de las tres pantallas de iconos y se mueven enteras al deslizar. " +
+            "«Iconos deslizantes» es más realista: el fondo se queda quieto y solo se mueven los iconos, como en un móvil de verdad; " +
+            "necesita más capturas y la propia pantalla te explica cómo hacerlas. " +
+            "En ambos casos marcas con el dedo las cajas de las cifras (pantallas 1 y 2) y la caja del icono de la app de listas (pantalla 3). El público no las ve.",
+        "Escritorio: dedo fuera de las cajas" to
+            "Decide qué pasa si empiezas a deslizar fuera de una caja de cifra. «Ignorar»: se cambia de página y se queda la cifra anterior. " +
+            "«Bloquear»: no deja deslizar, así notas enseguida que has fallado. «Dígito 0»: cuenta como un cero.",
+        "Escritorio: botones ocultos" to
+            "El reset y la configuración no se ven: se activan manteniendo el dedo quieto en su zona el tiempo que elijas (1,5 segundos al principio). " +
+            "Puedes cambiarles el sitio, el tamaño y el tiempo.",
+        "Escritorio: máscaras" to
+            "Sirven para tapar algo de la captura que delataría el truco, como la hora, y poner encima la hora real de tu móvil, siempre al día. " +
+            "Se pueden rellenar con un color o con el fondo.",
+        "Zonas fijas (iconos deslizantes)" to
+            "Son las partes que en un móvil real no se mueven al cambiar de pantalla, como la barra de arriba o el dock de abajo.",
+        "Un consejo" to
+            "Prueba el efecto varias veces antes de actuar: practica a deslizar rápido y comprueba que las palabras aparecen donde deben.",
+    )
+    for ((title, body) in topics) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(body, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 /** Botón que abre el editor de cajas de una página: dígitos (1 y 2) o icono (3). */
 @Composable
 private fun BoxesButton(state: AppState, p: Int) {
@@ -202,15 +303,18 @@ private fun BoxesButton(state: AppState, p: Int) {
     }
 }
 
-/** Modo capas: fondo fijo, capturas de cada página y zonas fijas. */
+/** Iconos deslizantes: fondo fijo, capturas de cada página y zonas fijas. */
 @Composable
 private fun LayersSection(state: AppState, choose: (String) -> Unit) {
     val cfg = state.config
-    val bw = cfg.mode == ScreenMode.LAYERS_BW
     val gray = MaterialTheme.colorScheme.onSurfaceVariant
 
-    Section("Fondo fijo")
-    Text("El fondo de pantalla de tu móvil (la imagen original, no una captura). No se mueve al cambiar de página.", fontSize = 13.sp, color = gray)
+    Section("Fondo")
+    Text(
+        "La imagen original del fondo de pantalla de tu móvil (no una captura). Se queda quieta cuando cambias de página.",
+        fontSize = 13.sp,
+        color = gray,
+    )
     val hasWall = state.images.containsKey(Slots.WALL)
     Text("Fondo" + if (hasWall) "  ✓" else "  (sin imagen)", fontWeight = FontWeight.SemiBold)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -221,36 +325,28 @@ private fun LayersSection(state: AppState, choose: (String) -> Unit) {
 
     HorizontalDivider()
 
-    Section("Capas de iconos")
+    Section("Capturas de los iconos")
     Text(
-        if (bw) {
-            "1) En Ajustes → Fondo de pantalla pon un color liso NEGRO y haz una captura de cada pantalla de iconos. " +
-                "2) Repite con un color liso BLANCO (mismas páginas, mismos iconos, sin moverlos). " +
-                "3) Elige aquí las capturas. La app calcula sola la transparencia de los iconos."
-        } else {
-            "Pon como fondo de pantalla un color liso que no aparezca en tus iconos (por ejemplo verde puro) y haz una captura de cada pantalla de iconos. " +
-                "La app detecta sola ese color y lo hace transparente."
-        },
+        "Necesitas dos capturas de cada pantalla de iconos, iguales salvo por el fondo: una con fondo negro y otra con fondo blanco.",
         fontSize = 13.sp,
         color = gray,
     )
-    if (!bw) {
-        var tol by remember(cfg.keyTolerance) { mutableStateOf(cfg.keyTolerance.toFloat()) }
-        Text("Tolerancia del color: ${tol.toInt()}", fontWeight = FontWeight.SemiBold)
-        Slider(tol, { tol = it }, valueRange = 20f..200f, onValueChangeFinished = { state.setKeyTolerance(tol.toInt()) })
-        Text(
-            "Más alta = los píxeles parecidos al fondo (carpetas translúcidas, sombras) se vuelven más transparentes. " +
-                "Para cristal translúcido el modo blanco/negro es más exacto.",
-            fontSize = 12.sp,
-            color = gray,
-        )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
+        ExampleScreenshot(dark = true, caption = "Fondo negro")
+        ExampleScreenshot(dark = false, caption = "Fondo blanco")
     }
+    Text(
+        "1) En Ajustes → Fondo de pantalla elige un color liso NEGRO y haz una captura de cada pantalla de iconos.\n" +
+            "2) Cambia el fondo a un color liso BLANCO y repite las capturas, con los mismos iconos en el mismo sitio.\n" +
+            "3) Elige aquí las capturas. La app se encarga de dejar los iconos sueltos sobre tu fondo.",
+        fontSize = 13.sp,
+        color = gray,
+    )
     for (p in 0..2) {
-        val slots = if (bw) listOf(Slots.bwDark(p) to "Fondo negro", Slots.bwLight(p) to "Fondo blanco") else listOf(Slots.key(p) to "Captura")
         val ready = state.layers.containsKey(p)
         Text("Pantalla ${p + 1}" + if (ready) "  ✓" else "", fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for ((slot, label) in slots) {
+            for ((slot, label) in listOf(Slots.bwDark(p) to "Fondo negro", Slots.bwLight(p) to "Fondo blanco")) {
                 val has = state.rawPresent[slot] == true
                 OutlinedButton(onClick = { choose(slot) }) { Text(label + if (has) " ✓" else "") }
             }
@@ -265,13 +361,58 @@ private fun LayersSection(state: AppState, choose: (String) -> Unit) {
     HorizontalDivider()
 
     Section("Zonas fijas")
-    Text("Partes que no se deslizan en el móvil real: la barra superior y el dock. Se dibujan con la capa de la pantalla 1.", fontSize = 13.sp, color = gray)
+    Text(
+        "Partes que no se deslizan en el móvil real: la barra superior y el dock. Se dibujan con la captura de la pantalla 1.",
+        fontSize = 13.sp,
+        color = gray,
+    )
     Button(onClick = { state.screen = Screen.Editor(EditTarget.Fixed) }) { Text("Zonas fijas (${cfg.fixedZones.size})") }
+}
+
+/** Dibujo de ejemplo de una captura: rectángulo vertical con fondo liso e iconos como cuadrados de colores. */
+@Composable
+private fun ExampleScreenshot(dark: Boolean, caption: String) {
+    val colors = listOf(Color(0xFFFF6347), Color(0xFF3CB371), Color(0xFFFFD700), Color(0xFFBA55D3), Color(0xFF1E90FF), Color(0xFFFF8C00))
+    val shape = RoundedCornerShape(10.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(
+            Modifier
+                .width(104.dp)
+                .aspectRatio(0.46f)
+                .clip(shape)
+                .border(1.dp, MaterialTheme.colorScheme.outline, shape),
+        ) {
+            drawRect(if (dark) Color.Black else Color.White)
+            val cols = 4
+            val rows = 5
+            val pad = size.width * 0.1f
+            val cell = (size.width - pad * 2) / cols
+            val icon = cell * 0.72f
+            for (r in 0 until rows) {
+                for (c in 0 until cols) {
+                    drawRoundRect(
+                        colors[(r * cols + c) % colors.size],
+                        topLeft = Offset(pad + c * cell + (cell - icon) / 2, size.height * 0.1f + r * cell * 1.3f),
+                        size = Size(icon, icon),
+                        cornerRadius = CornerRadius(icon * 0.25f),
+                    )
+                }
+            }
+            // el dock, abajo
+            drawRoundRect(
+                if (dark) Color(0x40FFFFFF) else Color(0x30000000),
+                topLeft = Offset(size.width * 0.05f, size.height * 0.86f),
+                size = Size(size.width * 0.9f, size.height * 0.11f),
+                cornerRadius = CornerRadius(size.width * 0.12f),
+            )
+        }
+        Text(caption, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+    }
 }
 
 @Composable
 private fun Section(title: String) {
-    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+    Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
 }
 
 @Composable
@@ -287,11 +428,11 @@ private fun PairDialog(
     var open by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial.id < 0) "Nuevo par" else "Editar par") },
+        title = { Text(if (initial.id < 0) "Nueva palabra" else "Editar palabra") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (listNames.isEmpty() && list.isBlank()) {
-                    Text("No quedan listas sin par. Crea otra lista en la app o borra un par.", color = MaterialTheme.colorScheme.error)
+                    Text("No quedan listas sin palabra. Crea otra lista en la app o borra una palabra.", color = MaterialTheme.colorScheme.error)
                 } else {
                     Box {
                         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {

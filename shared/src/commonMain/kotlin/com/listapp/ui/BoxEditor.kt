@@ -194,6 +194,10 @@ fun EditorScreen(state: AppState, target: EditTarget) {
         EditTarget.Masks -> cfg.masks.mapIndexed { i, m -> EditBox(m.id, "M${i + 1}", m.rect, selected == m.id, fill = false) }
         EditTarget.Fixed -> cfg.fixedZones.mapIndexed { i, r -> EditBox(i.toLong(), "Z${i + 1}", r, selected == i.toLong()) }
         EditTarget.Wallpaper -> emptyList()
+        EditTarget.Hidden -> listOf(
+            EditBox(0, "Reset", cfg.resetBox, selected == 0L),
+            EditBox(1, "Config", cfg.configBox, selected == 1L),
+        )
     }
 
     fun setDigitBoxes(list: List<NRect?>) = state.updateConfig { c ->
@@ -208,6 +212,7 @@ fun EditorScreen(state: AppState, target: EditTarget) {
             EditTarget.Masks -> state.updateConfig { c -> c.copy(masks = c.masks.map { if (it.id == id) it.copy(rect = r) else it }) }
             EditTarget.Fixed -> state.updateConfig { c -> c.copy(fixedZones = c.fixedZones.mapIndexed { i, old -> if (i.toLong() == id) r else old }) }
             EditTarget.Wallpaper -> {}
+            EditTarget.Hidden -> state.updateConfig { if (id == 0L) it.copy(resetBox = r) else it.copy(configBox = r) }
         }
     }
 
@@ -259,6 +264,7 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                         EditTarget.Masks -> "Máscaras"
                         EditTarget.Fixed -> "Zonas fijas"
                         EditTarget.Wallpaper -> "Ajustar el fondo"
+                        EditTarget.Hidden -> "Botones ocultos"
                     },
                     Modifier.weight(1f),
                     fontWeight = FontWeight.Bold,
@@ -317,6 +323,7 @@ fun EditorScreen(state: AppState, target: EditTarget) {
                         )
                         EditTarget.Fixed -> FixedPanel(state, selected) { selected = it }
                         EditTarget.Wallpaper -> WallpaperPanel(state)
+                        EditTarget.Hidden -> HiddenPanel(state, viewPage) { viewPage = it }
                     }
                 }
             }
@@ -389,6 +396,31 @@ private fun FixedPanel(state: AppState, selected: Long?, onSelect: (Long?) -> Un
         }, enabled = selected != null) { Text("Quitar zona") }
     }
 }
+
+@Composable
+private fun HiddenPanel(state: AppState, page: Int, onPage: (Int) -> Unit) {
+    val cfg = state.config
+    Text(
+        "Arrastra cada caja a donde te interese y estira con el círculo amarillo. Valen para todas las pantallas: " +
+            "no hay que colocarlas una por una.",
+        fontSize = 13.sp,
+    )
+    Text("Ver como fondo la pantalla:", fontSize = 13.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (p in 0..2) Chip("${p + 1}", page == p) { onPage(p) }
+    }
+    Text("Reset: mantener ${seconds(cfg.resetHoldMs)}", fontWeight = FontWeight.SemiBold)
+    Slider(cfg.resetHoldMs / 1000f, { v -> state.updateConfig { it.copy(resetHoldMs = (v * 10).roundToInt() * 100) } }, valueRange = 0.5f..5f)
+    Text("Configuración: mantener ${seconds(cfg.configHoldMs)}", fontWeight = FontWeight.SemiBold)
+    Slider(cfg.configHoldMs / 1000f, { v -> state.updateConfig { it.copy(configHoldMs = (v * 10).roundToInt() * 100) } }, valueRange = 0.5f..5f)
+    OutlinedButton(onClick = {
+        val d = com.listapp.domain.MagicConfig()
+        state.updateConfig { it.copy(resetBox = d.resetBox, configBox = d.configBox, resetHoldMs = d.resetHoldMs, configHoldMs = d.configHoldMs) }
+    }) { Text("Restablecer") }
+}
+
+/** 1500 → «1,5 s». */
+fun seconds(ms: Int) = "${ms / 1000},${(ms % 1000) / 100} s"
 
 @Composable
 private fun WallpaperPanel(state: AppState) {

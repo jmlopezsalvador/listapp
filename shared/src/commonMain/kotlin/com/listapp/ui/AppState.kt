@@ -28,7 +28,7 @@ sealed interface Screen {
     data class Editor(val target: EditTarget) : Screen
 }
 
-enum class EditTarget { Digits1, Digits2, Icon, Masks, Fixed, Wallpaper }
+enum class EditTarget { Digits1, Digits2, Icon, Masks, Fixed, Wallpaper, Hidden }
 
 /** Nombres de los ficheros de imagen. */
 object Slots {
@@ -45,9 +45,6 @@ object Slots {
     fun bwDark(p: Int) = "bwdark${p + 1}.img"
     fun bwLight(p: Int) = "bwlight${p + 1}.img"
 
-    /** Modo capas color único: captura sobre fondo liso de cada página (0..2). */
-    fun key(p: Int) = "key${p + 1}.img"
-
     /** Caché de la capa ya procesada (píxeles ARGB). */
     fun layerCache(mode: ScreenMode, p: Int) = "layer_${mode.name.lowercase()}_${p + 1}.raw"
 
@@ -55,9 +52,9 @@ object Slots {
     val decoded = pages + CLEAN + WALL
 
     /** Capturas de entrada del modo capas (solo se guardan; la capa resultante se calcula). */
-    val raw = (0..2).flatMap { listOf(bwDark(it), bwLight(it), key(it)) }
+    val raw = (0..2).flatMap { listOf(bwDark(it), bwLight(it)) }
 
-    fun modeOfRaw(slot: String) = if (slot.startsWith("key")) ScreenMode.LAYERS_KEY else ScreenMode.LAYERS_BW
+    fun modeOfRaw(@Suppress("UNUSED_PARAMETER") slot: String) = ScreenMode.LAYERS_BW
     fun pageOfRaw(slot: String) = slot.last { it.isDigit() }.digitToInt() - 1
 }
 
@@ -76,6 +73,9 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
     /** Sube cada vez que hay un reset para que el escritorio vuelva a la primera página. */
     var resetCount by mutableIntStateOf(0)
         private set
+
+    /** Secciones desplegadas de la pantalla de configuración (solo en memoria). */
+    val openSections = mutableStateMapOf("efecto" to true)
 
     private var applied = false
     private var undo: List<UndoEntry> = loadUndo()
@@ -143,15 +143,6 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
         loadLayers()
     }
 
-    /** Modo color único: cambia la tolerancia y recalcula las capas. */
-    fun setKeyTolerance(v: Int) {
-        updateConfig { it.copy(keyTolerance = v) }
-        for (p in 0..2) {
-            blobs.delete(Slots.layerCache(ScreenMode.LAYERS_KEY, p))
-            if (config.mode == ScreenMode.LAYERS_KEY) rebuildLayer(p)
-        }
-    }
-
     /** Carga las capas del modo activo (de la caché; si falta, las recalcula a partir de las capturas). */
     fun loadLayers() {
         layers.clear()
@@ -175,7 +166,6 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
         val mode = config.mode
         val inputs = when (mode) {
             ScreenMode.LAYERS_BW -> listOf(Slots.bwDark(page), Slots.bwLight(page))
-            ScreenMode.LAYERS_KEY -> listOf(Slots.key(page))
             ScreenMode.FULL -> return
         }
         if (inputs.any { rawPresent[it] != true }) {
@@ -194,7 +184,7 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
                     val h = imgs[0].height
                     require(imgs.all { it.width == w && it.height == h }) { "Las dos capturas deben tener el mismo tamaño" }
                     val px = imgs.map { img -> IntArray(w * h).also { img.readPixels(it) } }
-                    val out = if (mode == ScreenMode.LAYERS_BW) Matting.blackWhite(px[0], px[1]) else Matting.colorKey(px[0], low = maxOf(2, config.keyTolerance / 6), high = config.keyTolerance)
+                    val out = Matting.blackWhite(px[0], px[1])
                     blobs.write(Slots.layerCache(mode, page), Matting.encodeLayer(w, h, out))
                     imageFromPixels(w, h, out)
                 }
@@ -274,27 +264,72 @@ class AppState(private val kv: KeyValueStore, private val blobs: BlobStore, priv
     }
 }
 
-/** Listas de ejemplo para la primera vez (se pueden borrar o editar). */
+/** Listas de ejemplo para la primera vez (se pueden borrar o editar): 8 listas con entre 35 y 50 elementos cada una. */
 object SampleLists {
     fun build(): List<MagicList> = listOf(
         MagicList(1, "Juegos de mesa", split(
             "Catan,Carcassonne,Ticket to Ride,Pandemic,Dixit,7 Wonders,Agricola,Azul,Codenames,Terraforming Mars," +
-                "Gloomhaven,Brass,Wingspan,Dominion,Puerto Rico,Twilight Struggle,Scythe,Root,Everdell,Cascadia," +
-                "Patchwork,Jaipur,Kingdomino,Sagrada,Takenoko,Love Letter,Citadels,Resistance,Mysterium,Cluedo," +
-                "Risk,Monopoly,Stratego,Hive,Jenga,Uno,Perudo,Rummikub,Tzolk'in,Terra Mystica," +
-                "Great Western Trail,Lost Cities,Santorini,Quacks of Quedlinburg,Just One,Concordia,Pandemic Legacy,Orleans,Zooloretto,Lords of Waterdeep")),
+            "Gloomhaven,Brass,Wingspan,Dominion,Puerto Rico,Twilight Struggle,Scythe,Root,Everdell,Cascadia,Patchwork," +
+            "Jaipur,Kingdomino,Sagrada,Takenoko,Love Letter,Citadels,Resistance,Mysterium,Cluedo,Risk,Monopoly," +
+            "Stratego,Hive,Jenga,Uno,Perudo,Rummikub,Tzolk'in,Terra Mystica,Great Western Trail,Lost Cities,Santorini",
+        )),
         MagicList(2, "Música", split(
-            "Queen,Pink Floyd,Radiohead,Nirvana,Oasis,Metallica,AC/DC,Led Zeppelin,The Beatles,Rolling Stones," +
-                "U2,Coldplay,Muse,Depeche Mode,The Cure,Pearl Jam,Foo Fighters,Green Day,Blur,Pulp," +
-                "Los Chikos del Maíz,Fito y Fitipaldis,Platero y Tú,Marea,Los Suaves,Barricada,Héroes del Silencio,Mecano,Radio Futura,Los Secretos," +
-                "Duncan Dhu,Siniestro Total,La Oreja de Van Gogh,Estopa,Amaral,Love of Lesbian,Izal,Vetusta Morla,Fangoria,Sidonie," +
-                "Daft Punk,Gorillaz,Arctic Monkeys,The Strokes,Kings of Leon,Lori Meyers,Dani Martín,Leiva,Quique González,Calamaro")),
-        MagicList(3, "Países visitados", split(
-            "España,Portugal,Andorra,Italia,Alemania,Suiza,Austria,Bélgica,Holanda,Luxemburgo," +
-                "Reino Unido,Irlanda,Dinamarca,Suecia,Noruega,Finlandia,Polonia,Chequia,Hungría,Croacia," +
-                "Grecia,Turquía,Marruecos,Egipto,Túnez,México,Cuba,Argentina,Chile,Perú," +
-                "Estados Unidos,Canadá,Japón,Tailandia,Vietnam,India,Islandia,Malta,Eslovenia,Rumanía," +
-                "Bulgaria,Lituania,Letonia,Estonia,Serbia,Montenegro,Albania,Jordania,Mónaco,Bosnia")),
+            "Queen,Pink Floyd,Radiohead,Nirvana,Oasis,Metallica,AC/DC,Led Zeppelin,The Beatles,Rolling Stones,U2," +
+            "Coldplay,Muse,Depeche Mode,The Cure,Pearl Jam,Foo Fighters,Green Day,Blur,Pulp,Los Chikos del Maíz," +
+            "Fito y Fitipaldis,Platero y Tú,Marea,Los Suaves,Barricada,Héroes del Silencio,Mecano,Radio Futura," +
+            "Los Secretos,Duncan Dhu,Siniestro Total,La Oreja de Van Gogh,Estopa,Amaral,Love of Lesbian,Izal," +
+            "Vetusta Morla",
+        )),
+        MagicList(3, "Países", split(
+            "España,Portugal,Andorra,Italia,Alemania,Suiza,Austria,Bélgica,Holanda,Luxemburgo,Reino Unido,Irlanda," +
+            "Dinamarca,Suecia,Noruega,Finlandia,Polonia,Chequia,Hungría,Croacia,Grecia,Turquía,Marruecos,Egipto,Túnez," +
+            "México,Cuba,Argentina,Chile,Perú,Estados Unidos,Canadá,Japón,Tailandia,Vietnam,India,Islandia,Malta," +
+            "Eslovenia,Rumanía,Bulgaria,Lituania,Letonia,Estonia,Serbia,Montenegro,Albania",
+        )),
+        MagicList(4, "Sueños", split(
+            "Viajar por el mundo,Aprender a tocar el piano,Escribir un libro,Correr un maratón," +
+            "Tener una casa en el campo,Ver la aurora boreal,Hacer paracaidismo,Aprender japonés," +
+            "Montar un negocio propio,Dar la vuelta al mundo en velero,Plantar un árbol,Bucear con tiburones," +
+            "Ir a un mundial de fútbol,Hacer el Camino de Santiago,Aprender a surfear,Tener un perro grande," +
+            "Recorrer la Ruta 66,Ver una ópera en Viena,Pilotar una avioneta,Dormir en un iglú," +
+            "Ver las pirámides de Egipto,Hacer un curso de cocina en Italia,Montar en globo aerostático," +
+            "Aprender a bailar tango,Visitar Machu Picchu,Escalar una gran montaña,Vivir un año en otro país," +
+            "Pintar un cuadro,Montar una banda de música,Ir a Disneyland,Ver el amanecer en Angkor Wat," +
+            "Hacer un safari en África,Tener una biblioteca propia,Aprender a bucear,Ayudar como voluntario," +
+            "Conocer a mi ídolo",
+        )),
+        MagicList(5, "Películas", split(
+            "El padrino,Casablanca,Pulp Fiction,El señor de los anillos,Matrix,Gladiator,Titanic,Forrest Gump," +
+            "La lista de Schindler,El club de la lucha,Origen,Interstellar,Regreso al futuro,Jurassic Park,Star Wars," +
+            "Indiana Jones,Alien,Blade Runner,El resplandor,Psicosis,Cantando bajo la lluvia,Cinema Paradiso," +
+            "La vida es bella,Amélie,El laberinto del fauno,Los otros,Ocho apellidos vascos,Mar adentro,Volver," +
+            "Todo sobre mi madre,El Rey León,Toy Story,Buscando a Nemo,Up,Shrek,Los Increíbles,Coco,Ratatouille," +
+            "WALL·E,Harry Potter y la piedra filosofal,Piratas del Caribe,Los Goonies,E.T.,Tiburón,Taxi Driver," +
+            "Apocalypse Now,El silencio de los corderos,Seven,Memento",
+        )),
+        MagicList(6, "Marca de coches", split(
+            "Seat,Renault,Peugeot,Citroën,Ford,Opel,Volkswagen,Audi,BMW,Mercedes-Benz,Toyota,Honda,Nissan,Mazda," +
+            "Hyundai,Kia,Fiat,Alfa Romeo,Volvo,Skoda,Dacia,Mini,Porsche,Ferrari,Lamborghini,Maserati,Tesla,Jaguar," +
+            "Land Rover,Suzuki,Mitsubishi,Subaru,Jeep,Chevrolet,Cupra",
+        )),
+        MagicList(7, "Libros", split(
+            "Don Quijote de la Mancha,Cien años de soledad,1984,Rebelión en la granja,El Principito," +
+            "La sombra del viento,Los pilares de la Tierra,El nombre de la rosa,Orgullo y prejuicio,Jane Eyre," +
+            "Cumbres borrascosas,Crimen y castigo,Los hermanos Karamázov,Ana Karénina,Guerra y paz,Madame Bovary," +
+            "Los miserables,El conde de Montecristo,Veinte mil leguas de viaje submarino,La isla del tesoro," +
+            "Frankenstein,Drácula,El retrato de Dorian Gray,Fahrenheit 451,Un mundo feliz," +
+            "El guardián entre el centeno,Matar a un ruiseñor,El gran Gatsby,Ensayo sobre la ceguera," +
+            "La casa de los espíritus,Pedro Páramo,Rayuela,El túnel,La ciudad y los perros,Platero y yo,La Regenta," +
+            "El Lazarillo de Tormes,La colmena,Los renglones torcidos de Dios,Patria,El Hobbit",
+        )),
+        MagicList(8, "Videojuegos", split(
+            "Super Mario Bros,The Legend of Zelda,Tetris,Pac-Man,Sonic,Pokémon Rojo,Minecraft,Fortnite,FIFA," +
+            "Grand Theft Auto V,Red Dead Redemption 2,The Witcher 3,Skyrim,Fallout 4,Dark Souls,Elden Ring,God of War," +
+            "The Last of Us,Uncharted,Resident Evil 4,Metal Gear Solid,Final Fantasy VII,Kingdom Hearts," +
+            "Street Fighter II,Mortal Kombat,Doom,Half-Life,Portal,Counter-Strike,League of Legends,World of Warcraft," +
+            "StarCraft,Age of Empires,Civilization,Los Sims,Animal Crossing,Stardew Valley,Celeste,Hollow Knight," +
+            "Hades,Among Us,Rocket League,Overwatch,Assassin's Creed,Mario Kart",
+        )),
     )
 
     private fun split(s: String) = s.split(",")

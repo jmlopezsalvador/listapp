@@ -49,21 +49,6 @@ class MattingTest {
         assertTrue(abs((out[85] ushr 24) - 128) <= 3)
     }
 
-    @Test fun colorKeyMakesBackgroundTransparentAndKeepsIcons() {
-        val out = Matting.colorKey(scene(0, 255, 0))
-        assertEquals(0, out[0] ushr 24)
-        assertEquals(255, out[70] ushr 24)
-        assertEquals(argb(255, 200, 40, 90), out[70])
-    }
-
-    @Test fun higherToleranceMakesNearKeyPixelsTranslucent() {
-        // cristal blanco translúcido sobre verde: (76, 255, 76) a distancia 76 del fondo
-        val img = IntArray(100) { if (it < 80) argb(255, 0, 255, 0) else argb(255, 76, 255, 76) }
-        assertEquals(255, Matting.colorKey(img, 8, 48)[90] ushr 24)
-        val soft = Matting.colorKey(img, 25, 150)[90] ushr 24
-        assertTrue(soft in 1..254, "alpha $soft")
-    }
-
     @Test fun layerCodecRoundTrips() {
         val px = intArrayOf(argb(255, 1, 2, 3), argb(0, 0, 0, 0), argb(128, 250, 251, 252), -1, 0, 7)
         val d = assertNotNull(Matting.decodeLayer(Matting.encodeLayer(3, 2, px)))

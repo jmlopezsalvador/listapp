@@ -77,43 +77,6 @@ object Matting {
         return out
     }
 
-    /**
-     * Una sola captura sobre un fondo de color liso (se detecta solo). Lo parecido al fondo pasa a transparente y
-     * los bordes se aclaran quitando el tinte del color de fondo. Menos exacto que `blackWhite`.
-     */
-    fun colorKey(img: IntArray, low: Int = 8, high: Int = 48): IntArray {
-        val k = dominantColor(img)
-        val kr = r(k)
-        val kg = g(k)
-        val kb = b(k)
-        val range = (high - low).toFloat()
-        val out = IntArray(img.size)
-        for (i in img.indices) {
-            val p = img[i]
-            val pr = r(p)
-            val pg = g(p)
-            val pb = b(p)
-            val dist = maxOf(abs(pr - kr), abs(pg - kg), abs(pb - kb))
-            val alpha = ((dist - low) / range).coerceIn(0f, 1f)
-            if (alpha <= 0f) {
-                out[i] = 0
-                continue
-            }
-            out[i] = if (alpha >= 1f) {
-                pack(255, pr, pg, pb)
-            } else {
-                // quita el tinte del fondo: F = K + (I - K) / alpha
-                pack(
-                    clamp255(alpha * 255f),
-                    clamp255(kr + (pr - kr) / alpha),
-                    clamp255(kg + (pg - kg) / alpha),
-                    clamp255(kb + (pb - kb) / alpha),
-                )
-            }
-        }
-        return out
-    }
-
     /** Formato del fichero de caché de una capa: ancho y alto (Int, 4 bytes cada uno) y luego los píxeles ARGB. */
     fun encodeLayer(w: Int, h: Int, px: IntArray): ByteArray {
         val out = ByteArray(8 + px.size * 4)
