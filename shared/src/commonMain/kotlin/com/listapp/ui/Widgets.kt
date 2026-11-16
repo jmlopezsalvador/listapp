@@ -126,18 +126,22 @@ fun Modifier.longPressReorder(
         }
         if (held == null) {
             onStart()
-            while (true) {
-                val ev = awaitPointerEvent()
-                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-                if (!c.pressed || c.changedToUp()) {
+            try {
+                while (true) {
+                    val ev = awaitPointerEvent()
+                    val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!c.pressed || c.changedToUp()) {
+                        ev.changes.forEach { it.consume() }
+                        break
+                    }
+                    val dy = c.positionChange().y
                     ev.changes.forEach { it.consume() }
-                    break
+                    if (dy != 0f) onDrag(dy)
                 }
-                val dy = c.positionChange().y
-                ev.changes.forEach { it.consume() }
-                if (dy != 0f) onDrag(dy)
+            } finally {
+                // Siempre se cierra el movimiento (también si el gesto se cancela), para guardar y no dejar la fila «agarrada».
+                onEnd()
             }
-            onEnd()
         }
     }
 }

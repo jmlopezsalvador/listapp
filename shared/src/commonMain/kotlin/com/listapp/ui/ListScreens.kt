@@ -181,16 +181,20 @@ fun ListsScreen(state: AppState) {
     fun settleDrag() {
         val id = dragId ?: return
         var i = state.lists.indexOfFirst { it.id == id }
+        val firstIdx = lazy.firstVisibleItemIndex
+        val firstOff = lazy.firstVisibleItemScrollOffset
+        var swapped = false
         while (i >= 0) {
             val last = state.lists.lastIndex
             if (dragOffset > slotPx / 2 && i < last) {
                 state.updateLists { ls -> ls.toMutableList().also { it.add(i + 1, it.removeAt(i)) } }
-                dragOffset -= slotPx; i++
+                dragOffset -= slotPx; i++; swapped = true
             } else if (dragOffset < -slotPx / 2 && i > 0) {
                 state.updateLists { ls -> ls.toMutableList().also { it.add(i - 1, it.removeAt(i)) } }
-                dragOffset += slotPx; i--
+                dragOffset += slotPx; i--; swapped = true
             } else break
         }
+        if (swapped) lazy.requestScrollToItem(firstIdx, firstOff)
         if (i == 0 && dragOffset < 0f) dragOffset = 0f
         if (i == state.lists.lastIndex && dragOffset > 0f) dragOffset = 0f
     }
@@ -417,13 +421,18 @@ fun ListDetailScreen(state: AppState, listId: Long) {
     fun settleDrag() {
         val id = dragId ?: return
         var i = rows.indexOfFirst { it.id == id }
+        // LazyColumn «sigue» a la fila que estaba arriba cuando cambia de sitio y desplaza la lista: hay que fijar el scroll.
+        val firstIdx = lazy.firstVisibleItemIndex
+        val firstOff = lazy.firstVisibleItemScrollOffset
+        var swapped = false
         while (i >= 0) {
             if (dragOffset > slotPx / 2 && i < rows.lastIndex) {
-                rows.add(i + 1, rows.removeAt(i)); dragOffset -= slotPx; i++
+                rows.add(i + 1, rows.removeAt(i)); dragOffset -= slotPx; i++; swapped = true
             } else if (dragOffset < -slotPx / 2 && i > 0) {
-                rows.add(i - 1, rows.removeAt(i)); dragOffset += slotPx; i--
+                rows.add(i - 1, rows.removeAt(i)); dragOffset += slotPx; i--; swapped = true
             } else break
         }
+        if (swapped) lazy.requestScrollToItem(firstIdx, firstOff)
         // En los extremos no hay con quién intercambiarse: la fila no puede salirse de su hueco hacia fuera.
         if (i == 0 && dragOffset < 0f) dragOffset = 0f
         if (i == rows.lastIndex && dragOffset > 0f) dragOffset = 0f
