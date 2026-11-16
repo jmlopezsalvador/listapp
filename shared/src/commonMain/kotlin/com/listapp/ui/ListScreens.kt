@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -57,7 +58,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -140,9 +145,9 @@ fun PlusButton(onClick: () -> Unit) {
 
 /** Una pantalla normal de la app: fondo del tema y márgenes seguros (notch, teclado…). */
 @Composable
-fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
+fun ScreenFrame(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
@@ -186,6 +191,8 @@ fun ListsScreen(state: AppState) {
                 dragOffset += slotPx; i--
             } else break
         }
+        if (i == 0 && dragOffset < 0f) dragOffset = 0f
+        if (i == state.lists.lastIndex && dragOffset > 0f) dragOffset = 0f
     }
 
     LaunchedEffect(dragId) {
@@ -202,8 +209,7 @@ fun ListsScreen(state: AppState) {
                 else -> 0f
             }
             if (step != 0f) {
-                lazy.dispatchRawDelta(step)
-                dragOffset += step
+                dragOffset += lazy.dispatchRawDelta(step)
                 settleDrag()
             }
         }
@@ -381,19 +387,6 @@ fun ListDetailScreen(state: AppState, listId: Long) {
         persist()
     }
 
-    /** «Siguiente» en el teclado: guarda esta fila y abre otra nueva justo debajo. */
-    fun nextRow(id: Long, text: String) {
-        val i = rows.indexOfFirst { it.id == id }
-        if (i < 0) return
-        val t = text.trim()
-        if (t.isEmpty()) { commitRow(id, text); return }
-        rows[i] = rows[i].copy(text = t)
-        val nr = ItemRow(newId(), "")
-        rows.add(i + 1, nr)
-        editingId = nr.id
-        persist()
-    }
-
     fun addAtEnd() {
         val nr = ItemRow(newId(), "")
         rows.add(nr)
@@ -431,6 +424,9 @@ fun ListDetailScreen(state: AppState, listId: Long) {
                 rows.add(i - 1, rows.removeAt(i)); dragOffset += slotPx; i--
             } else break
         }
+        // En los extremos no hay con quién intercambiarse: la fila no puede salirse de su hueco hacia fuera.
+        if (i == 0 && dragOffset < 0f) dragOffset = 0f
+        if (i == rows.lastIndex && dragOffset > 0f) dragOffset = 0f
     }
 
     // Desplazamiento automático al arrastrar cerca del borde.
@@ -448,14 +444,17 @@ fun ListDetailScreen(state: AppState, listId: Long) {
                 else -> 0f
             }
             if (step != 0f) {
-                lazy.dispatchRawDelta(step)
-                dragOffset += step
+                // Solo se suma lo que la lista se ha desplazado de verdad (en los extremos no se mueve).
+                dragOffset += lazy.dispatchRawDelta(step)
                 settleDrag()
             }
         }
     }
 
-    ScreenFrame {
+    // Tocar en una zona vacía quita el foco: se guarda el cambio y se cierra el teclado.
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    ScreenFrame(Modifier.pointerInput(Unit) { detectTapGestures { focusManager.clearFocus(); keyboard?.hide() } }) {
         LargeHeader(
             list.name,
             "${rows.count { it.text.isNotBlank() }} elementos",
@@ -481,7 +480,6 @@ fun ListDetailScreen(state: AppState, listId: Long) {
                     },
                     onTap = { editingId = r.id },
                     onCommit = { commitRow(r.id, it) },
-                    onNext = { nextRow(r.id, it) },
                     onDelete = { deleteRow(r.id) },
                     onDragStart = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -522,7 +520,6 @@ internal fun ItemCard(
     modifier: Modifier,
     onTap: () -> Unit,
     onCommit: (String) -> Unit,
-    onNext: (String) -> Unit,
     onDelete: () -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
@@ -595,7 +592,7 @@ internal fun ItemCard(
             }
             Spacer(Modifier.width(12.dp))
             if (editing) {
-                EditableText(text, onCommit, onNext, Modifier.weight(1f))
+                EditableText(text, onCommit, Modifier.weight(1f))
             } else {
                 Text(text, Modifier.weight(1f), fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -603,27 +600,41 @@ internal fun ItemCard(
     }
 }
 
-/** Campo de texto en línea: guarda al perder el foco; «Siguiente» guarda y abre otra fila debajo. */
+/**
+ * Campo de texto en línea. Guarda (una sola vez) al pulsar «Hecho», al perder el foco o al desaparecer el campo
+ * (cambiar de fila, salir de la pantalla…); «Hecho» además cierra el teclado.
+ */
 @Composable
-private fun EditableText(initial: String, onCommit: (String) -> Unit, onNext: (String) -> Unit, modifier: Modifier) {
+private fun EditableText(initial: String, onCommit: (String) -> Unit, modifier: Modifier) {
     var draft by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var focused by remember { mutableStateOf(false) }
+    var committed by remember { mutableStateOf(false) }
+    val draftNow by rememberUpdatedState(draft)
+    val commit by rememberUpdatedState(onCommit)
+    fun save() {
+        if (committed) return
+        committed = true
+        commit(draftNow)
+    }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    DisposableEffect(Unit) { onDispose { save() } }
     BasicTextField(
         value = draft,
         onValueChange = { draft = it },
         modifier = modifier
             .focusRequester(focus)
             .onFocusChanged {
-                if (focused && !it.isFocused) onCommit(draft)
+                if (focused && !it.isFocused) save()
                 focused = it.isFocused
             },
         singleLine = true,
         textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
-        keyboardActions = KeyboardActions(onNext = { onNext(draft) }),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { save(); keyboard?.hide(); focusManager.clearFocus() }),
     )
 }
 
@@ -711,7 +722,13 @@ fun TextDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { OutlinedTextField(text, { text = it }, label = { Text(label) }, singleLine = true) },
+        text = {
+            OutlinedTextField(
+                text, { text = it }, label = { Text(label) }, singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (allowBlank || text.isNotBlank()) onOk(text) }),
+            )
+        },
         confirmButton = {
             TextButton(onClick = { onOk(text) }, enabled = allowBlank || text.isNotBlank()) { Text("Guardar") }
         },

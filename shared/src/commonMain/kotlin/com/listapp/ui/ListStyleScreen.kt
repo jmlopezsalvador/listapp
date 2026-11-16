@@ -166,7 +166,6 @@ private fun ItemsPreview() {
                 modifier = Modifier,
                 onTap = {},
                 onCommit = {},
-                onNext = {},
                 onDelete = {},
                 onDragStart = {},
                 onDrag = {},
