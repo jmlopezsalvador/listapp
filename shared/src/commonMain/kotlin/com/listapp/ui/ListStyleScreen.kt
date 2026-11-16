@@ -184,7 +184,10 @@ private fun ListsPreview() {
             Text("3 listas", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         for ((name, n) in listOf("Juegos de mesa" to 43, "Música" to 38, "Países" to 47)) {
-            ListRowCard(name, n, onOpen = {}, onRename = {}, onDelete = {})
+            ListRowCard(
+                name, n, dragging = false, modifier = Modifier,
+                onOpen = {}, onRename = {}, onDelete = {}, onDragStart = {}, onDrag = {}, onDragEnd = {},
+            )
         }
     }
 }

@@ -165,6 +165,50 @@ fun ListsScreen(state: AppState) {
     var creating by remember { mutableStateOf(false) }
     PlatformBackHandler(true) { state.screen = Screen.Home }
 
+    // ---- Reordenar listas (mantener pulsado y arrastrar, como los elementos)
+    val lazy = rememberLazyListState()
+    val look = LocalListLook.current
+    val slotPx = with(LocalDensity.current) { ((look?.rowHeight ?: 54.dp) + 32.dp).toPx() } // alto de fila (h + 22) + 10
+    var dragId by remember { mutableStateOf<Long?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+
+    fun settleDrag() {
+        val id = dragId ?: return
+        var i = state.lists.indexOfFirst { it.id == id }
+        while (i >= 0) {
+            val last = state.lists.lastIndex
+            if (dragOffset > slotPx / 2 && i < last) {
+                state.updateLists { ls -> ls.toMutableList().also { it.add(i + 1, it.removeAt(i)) } }
+                dragOffset -= slotPx; i++
+            } else if (dragOffset < -slotPx / 2 && i > 0) {
+                state.updateLists { ls -> ls.toMutableList().also { it.add(i - 1, it.removeAt(i)) } }
+                dragOffset += slotPx; i--
+            } else break
+        }
+    }
+
+    LaunchedEffect(dragId) {
+        val id = dragId ?: return@LaunchedEffect
+        while (true) {
+            delay(16)
+            val info = lazy.layoutInfo
+            val v = info.visibleItemsInfo.firstOrNull { it.key == id } ?: continue
+            val top = v.offset + dragOffset
+            val bottom = top + v.size
+            val step = when {
+                top < 90f -> -16f
+                bottom > info.viewportEndOffset - 90f -> 16f
+                else -> 0f
+            }
+            if (step != 0f) {
+                lazy.dispatchRawDelta(step)
+                dragOffset += step
+                settleDrag()
+            }
+        }
+    }
+
     ScreenFrame {
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
@@ -174,14 +218,28 @@ fun ListsScreen(state: AppState) {
                         Text("Aún no tienes listas.\nPulsa + para crear una.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = lazy, contentPadding = PaddingValues(bottom = 96.dp)) {
                     itemsIndexed(state.lists, key = { _, l -> l.id }) { _, l ->
+                        val dragging = dragId == l.id
                         ListRowCard(
                             name = l.name,
                             count = l.items.size,
+                            dragging = dragging,
+                            modifier = if (dragging) {
+                                Modifier.zIndex(1f).graphicsLayer { translationY = dragOffset }
+                            } else {
+                                Modifier.animateItem()
+                            },
                             onOpen = { state.screen = Screen.Detail(l.id) },
                             onRename = { renaming = l },
                             onDelete = { state.updateLists { ls -> ls.filter { it.id != l.id } } },
+                            onDragStart = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                dragOffset = 0f
+                                dragId = l.id
+                            },
+                            onDrag = { dy -> dragOffset += dy; settleDrag() },
+                            onDragEnd = { dragId = null; dragOffset = 0f },
                         )
                     }
                 }
@@ -196,14 +254,11 @@ fun ListsScreen(state: AppState) {
     }
 
     if (creating) {
-        TextDialog(
-            title = "Nueva lista",
-            initial = "",
-            label = "Nombre",
+        NewListDialog(
             onDismiss = { creating = false },
-            onOk = { name ->
+            onOk = { name, items ->
                 val id = state.nextListId()
-                state.updateLists { it + MagicList(id, name.trim()) }
+                state.updateLists { it + MagicList(id, name.trim(), items) }
                 creating = false
                 state.screen = Screen.Detail(id)
             },
@@ -225,13 +280,33 @@ fun ListsScreen(state: AppState) {
 
 /** Una lista en la «lista de listas»: tarjeta o fila según el aspecto elegido; deslizar descubre Renombrar y Borrar. */
 @Composable
-internal fun ListRowCard(name: String, count: Int, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+internal fun ListRowCard(
+    name: String,
+    count: Int,
+    dragging: Boolean,
+    modifier: Modifier,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
+) {
     val look = LocalListLook.current ?: return
     val h = look.rowHeight + 22.dp
+    val scope = rememberCoroutineScope()
+    var suppressTap by remember { mutableStateOf(false) }
+    val dragStart by rememberUpdatedState(onDragStart)
+    val dragMove by rememberUpdatedState(onDrag)
+    val dragEnd by rememberUpdatedState(onDragEnd)
+    val shape = RoundedCornerShape(if (look.cards) look.corner else 0.dp)
     SwipeRow(
         actionsWidth = 176.dp,
         corner = if (look.cards) look.corner else 0.dp,
-        modifier = if (look.cards) Modifier.padding(horizontal = 16.dp, vertical = 5.dp).height(h) else Modifier.height(h + 10.dp),
+        enabled = !dragging,
+        modifier = modifier
+            .then(if (look.cards) Modifier.padding(horizontal = 16.dp, vertical = 5.dp).height(h) else Modifier.height(h + 10.dp))
+            .then(if (dragging) Modifier.shadow(10.dp, shape) else Modifier),
         actions = {
             SwipeAction("Renombrar", MaterialTheme.colorScheme.primary, Modifier.weight(1f), onRename)
             SwipeAction("Borrar", Color(0xFFD32F2F), Modifier.weight(1f), onDelete)
@@ -242,7 +317,17 @@ internal fun ListRowCard(name: String, count: Int, onOpen: () -> Unit, onRename:
                 .fillMaxSize()
                 .background(if (look.cards) look.card else look.bg)
                 .rowDivider(look)
-                .clickable { if (open) close() else onOpen() }
+                .clickable { if (suppressTap) suppressTap = false else if (open) close() else onOpen() }
+                .longPressReorder(
+                    key = Unit,
+                    holdMs = REORDER_HOLD_MS,
+                    onStart = { suppressTap = true; dragStart() },
+                    onDrag = { dy -> dragMove(dy) },
+                    onEnd = {
+                        scope.launch { delay(200); suppressTap = false }
+                        dragEnd()
+                    },
+                )
                 .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -541,6 +626,76 @@ private fun EditableText(initial: String, onCommit: (String) -> Unit, onNext: (S
         keyboardActions = KeyboardActions(onNext = { onNext(draft) }),
     )
 }
+
+/** Diálogo de «Nueva lista»: nombre y, opcionalmente, elementos importados desde texto plano. */
+@Composable
+fun NewListDialog(onDismiss: () -> Unit, onOk: (String, List<String>) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var items by remember { mutableStateOf<List<String>>(emptyList()) }
+    var importing by remember { mutableStateOf(false) }
+    var importText by remember { mutableStateOf("") }
+
+    if (importing) {
+        AlertDialog(
+            onDismissRequest = { importing = false },
+            title = { Text("Importar elementos") },
+            text = {
+                Column {
+                    Text(
+                        "Pega texto plano. Cada línea (separada por un salto de línea) será un elemento de la lista, " +
+                            "en su número de orden. Las líneas vacías se ignoran.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        importText,
+                        { importText = it },
+                        modifier = Modifier.fillMaxWidth().height(220.dp),
+                        placeholder = { Text("Uno\nDos\nTres") },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    items = parseImportedLines(importText)
+                    importing = false
+                }) { Text("Cargar") }
+            },
+            dismissButton = { TextButton(onClick = { importing = false }) { Text("Cancelar") } },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nueva lista") },
+        text = {
+            Column {
+                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true)
+                Spacer(Modifier.height(8.dp))
+                if (items.isNotEmpty()) {
+                    Text(
+                        "Se cargarán ${items.size} elementos",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                TextButton(onClick = { importText = items.joinToString("\n"); importing = true }) {
+                    Text(if (items.isEmpty()) "Importar" else "Cambiar importación")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onOk(name, items) }, enabled = name.isNotBlank()) { Text("Guardar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}
+
+/** Cada línea no vacía del texto pegado es un elemento. */
+internal fun parseImportedLines(text: String): List<String> =
+    text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
 
 /** Diálogo con un campo de texto. */
 @Composable

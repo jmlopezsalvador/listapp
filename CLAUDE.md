@@ -53,6 +53,7 @@ en `project.yml`); el nombre no se puede cambiar. **Añadir un icono**: PNG en `
 `bleed` (a sangre) los recorta. Para probar: `adb install -r` conserva el estado de los alias, así que tras probar hay que dejar solo el de por defecto
 (`pm disable` de los demás y `pm enable com.listapp/.Icon_apple_notes_listapp`). Los iconos de la caja de la pantalla 3 (modo «Icono») están incrustados en base64 en `ui/FakeIconsData.kt` (**GENERADO** por `tools/generar_iconos.py` a partir de `data/icons/`; para añadir uno: PNG en `data/icons/png/`, entrada en `data/icons/fuentes.json` y volver a ejecutar el script). `ui/FakeIcons.kt` los decodifica.
 El aspecto de la app de listas es personalizable (`ListStyle` en la config; `ui/ListLook.kt` lo resuelve y `ListStyleScreen.kt` es el personalizador con vista previa): se aplica con `ListLookTheme` solo a las pantallas de listas.
+En la app de listas, tanto los elementos como las propias listas se reordenan manteniendo pulsado 1 s y arrastrando; «Nueva lista» (`NewListDialog`) permite importar elementos pegando texto plano (una línea = un elemento). Vibración: doble al activar reset/config y simple en cada cambio de página que fija un dígito.
 Las cajas se guardan en **fracciones (0..1)** de la pantalla completa; Home y editor ocultan las barras del sistema para que coincidan con las capturas.
 Estado: Android probado en emulador; **iOS sin compilar todavía** (selector de fotos con `UIImagePickerController` y almacén de ficheros escritos sin probar).
 
