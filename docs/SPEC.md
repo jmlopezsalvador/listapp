@@ -39,7 +39,7 @@ la **hora real del sistema** en tiempo real (HH:mm) con color y tamaño configur
   (y el «+» de arriba) añade al final; deslizar a la izquierda descubre *Borrar* (hasta el final, borra); **mantener pulsado 1 s** activa el modo
   mover (vibración) y se arrastra para subir o bajar, con desplazamiento automático en los bordes.
 **R6. Pares lista → palabra** (menú secreto): cualquier número de pares. Se elige la lista en un desplegable con las listas existentes que aún no tienen par (se asocia por nombre, sin distinguir mayúsculas).
-Si la lista no existe o es más corta que el número, no se toca. Si la palabra ya está en la lista (literal, sin distinguir mayúsculas),
+Si la lista no existe o tiene menos elementos que el número (p. ej. sale el 12 y la lista tiene 8), no se modifica en absoluto: no se añade la palabra ni se cambia nada; el resto de listas sí se procesan. Si la palabra ya está en la lista (literal, sin distinguir mayúsculas),
 se **mueve** a esa posición y el resto se reordena; si no está, **sustituye** al elemento de esa posición (el número de elementos de la lista nunca cambia).
 **R7. Reset.** Deshace lo insertado (restaura cada lista tal y como estaba antes del truco), olvida los dígitos y vuelve a la página 1.
 Al arrancar la app (cierre real) también se hace el reset, aunque se hubiera cerrado sin él.

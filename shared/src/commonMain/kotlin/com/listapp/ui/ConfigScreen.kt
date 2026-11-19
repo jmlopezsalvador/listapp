@@ -73,7 +73,9 @@ fun ConfigScreen(state: AppState) {
             Collapsible(state, "efecto", "Efecto", "Las palabras que aparecerán en las listas") {
                 Text(
                     "Elige en qué listas quieres que aparezca una palabra y cuál. Cuando alguien diga un número, la palabra aparecerá en ese puesto de esa lista. " +
-                        "Si la palabra ya estaba en la lista, se cambia de sitio; si no, sustituye a la que había en ese puesto. Si la lista es más corta que el número, no se toca.",
+                        "Si la palabra ya estaba en la lista, se cambia de sitio; si no, sustituye a la que había en ese puesto. " +
+                        "Ojo con las listas cortas: si el número que sale es mayor que la cantidad de elementos de esa lista (por ejemplo, sale el 12 y la lista solo tiene 8 elementos), " +
+                        "esa lista se queda exactamente como estaba, sin añadir nada ni cambiar nada, porque no existe un puesto 12 donde colocar la palabra. Las demás listas sí se modifican con normalidad.",
                     fontSize = 13.sp,
                     color = gray,
                 )
@@ -391,7 +393,10 @@ private fun Instructions(onGuide: () -> Unit) {
         "Efecto" to
             "Aquí preparas las palabras. Pulsa «Añadir palabra», elige una de tus listas y escribe la palabra que quieres que salga. " +
             "Puedes poner una palabra por lista. Si la palabra ya estaba en la lista, se cambia de sitio; si no, ocupa el lugar de la que había, " +
-            "así la lista nunca crece. Si una lista es más corta que el número elegido, se deja como está.",
+            "así la lista nunca crece. " +
+            "Atención a las listas demasiado cortas: si el número que sale es mayor que los elementos que tiene la lista (por ejemplo, sale el 12 y la lista solo tiene 8), " +
+            "esa lista no se modifica en absoluto: la palabra no se añade al final ni sustituye a nada, y la lista se queda tal cual la tenías. " +
+            "El resto de listas, que sí llegan a ese número, funcionan con normalidad. Por eso conviene que tus listas tengan suficientes elementos.",
         "Escritorio: modo y capturas" to
             "Aquí montas el escritorio falso con capturas de pantalla de tu móvil. Hay dos formas. " +
             "«Pantalla completa» es la más sencilla: haces una captura de cada una de las tres pantallas de iconos y se mueven enteras al deslizar. " +
