@@ -81,7 +81,8 @@ fun HomeScreen(state: AppState) {
     val pager = rememberPagerState { 3 }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
-    val haptic = LocalHapticFeedback.current
+    val buzz = rememberBuzzer()
+    val buzzNow by rememberUpdatedState(buzz)
     val hapticScope = androidx.compose.runtime.rememberCoroutineScope()
 
     val cfg by rememberUpdatedState(state.config)
@@ -113,7 +114,7 @@ fun HomeScreen(state: AppState) {
                 val d = candidates[prev]
                 if (d >= 0) {
                     if (prev == 0) state.tens = d else state.units = d
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress) // confirma que el dígito quedó fijado
+                    buzzNow(1) // confirma que el dígito quedó fijado
                 } else if (cfg.outsideMode == OutsideMode.BLOCK) {
                     pager.scrollToPage(prev)
                     return@collect
@@ -176,10 +177,9 @@ fun HomeScreen(state: AppState) {
                             null -> {
                                 // Doble vibración y, justo después, la acción (el gesto no puede suspenderse aquí).
                                 val isReset = corner == 1
+                                buzz(2)
                                 hapticScope.launch {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     kotlinx.coroutines.delay(130)
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (isReset) state.reset() else state.screen = Screen.Config
                                 }
                                 return@awaitEachGesture

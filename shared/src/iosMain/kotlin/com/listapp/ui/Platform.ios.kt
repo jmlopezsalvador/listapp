@@ -9,6 +9,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArrayOf
 import kotlinx.cinterop.memScoped
@@ -44,6 +46,24 @@ import platform.posix.memcpy
 /** iOS: la barra de estado y el indicador de inicio se ocultan en ContentView.swift. */
 @Composable
 actual fun SystemBarsEffect(hidden: Boolean, darkIcons: Boolean) {}
+
+@Composable
+actual fun rememberBuzzer(): (Int) -> Unit {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return remember {
+        { count: Int ->
+            scope.launch {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                if (count >= 2) {
+                    delay(130)
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                }
+            }
+            Unit
+        }
+    }
+}
 
 /** iOS no tiene botón «atrás» del sistema: se usan las flechas de la propia app. */
 @Composable

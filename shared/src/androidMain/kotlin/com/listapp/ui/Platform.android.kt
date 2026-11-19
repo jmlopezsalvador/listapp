@@ -54,6 +54,30 @@ actual fun SystemBarsEffect(hidden: Boolean, darkIcons: Boolean) {
 }
 
 @Composable
+actual fun rememberBuzzer(): (Int) -> Unit {
+    val context = LocalContext.current.applicationContext
+    return remember(context) {
+        val vibrator: android.os.Vibrator? = if (Build.VERSION.SDK_INT >= 31) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        }
+        val f: (Int) -> Unit = { count ->
+            try {
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    // Pausa inicial 0; pulso de 70 ms; pausa 90 ms; pulso de 70 ms.
+                    val pattern = if (count >= 2) longArrayOf(0, 70, 90, 70) else longArrayOf(0, 70)
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
+                }
+            } catch (_: Throwable) {
+            }
+        }
+        f
+    }
+}
+
+@Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) {
     BackHandler(enabled = enabled, onBack = onBack)
 }

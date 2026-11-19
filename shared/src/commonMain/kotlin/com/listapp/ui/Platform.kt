@@ -23,6 +23,13 @@ expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
 @Composable
 expect fun rememberImagePicker(onPicked: (ByteArray) -> Unit): () -> Unit
 
+/**
+ * Devuelve una función que vibra `count` veces (1 = simple, 2 = doble).
+ * Android: Vibrator real (no depende del ajuste «vibración al tocar»). iOS: respuesta háptica.
+ */
+@Composable
+expect fun rememberBuzzer(): (Int) -> Unit
+
 /** Decodifica PNG/JPEG a un bitmap de Compose (null si falla). */
 expect fun decodeImage(bytes: ByteArray): ImageBitmap?
 
